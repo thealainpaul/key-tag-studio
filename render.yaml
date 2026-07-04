@@ -2,7 +2,7 @@ services:
   - type: web
     name: key-tag-studio
     runtime: node
-    buildCommand: npm install && npx prisma db push && npm run db:seed && npm run build
+    buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
       - key: DATABASE_URL

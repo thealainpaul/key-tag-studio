@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
-    "start": "next start",
+    "build": "prisma generate && DATABASE_URL=file:./prisma/prod.db prisma db push && DATABASE_URL=file:./prisma/prod.db JWT_SECRET=prodsecret ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=password@123456 npm run db:seed && next build",
+    "start": "DATABASE_URL=file:./prisma/prod.db JWT_SECRET=prodsecret next start",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts"
