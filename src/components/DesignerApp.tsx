@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
-import { CANVAS_H, CANVAS_W, drawKeyTagBorder, drawKeyTagFill, KEYTAG_SPECS, SAFE_H, SAFE_W } from "@/lib/keytag-shape";
+import {
+  CANVAS_H,
+  CANVAS_W,
+  drawKeyTagBorder,
+  drawKeyTagFill,
+  getTagMetrics,
+  KEYTAG_SPECS,
+  SAFE_H,
+  SAFE_W,
+} from "@/lib/keytag-shape";
 
 const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
 
@@ -18,7 +27,7 @@ function defaultLines(): TextLine[] {
   ];
 }
 
-function loadImage(url: string, cache: Map<string, HTMLImageElement>) {
+function preloadImage(url: string, cache: Map<string, HTMLImageElement>) {
   const existing = cache.get(url);
   if (existing?.complete) return Promise.resolve(existing);
 
@@ -34,9 +43,64 @@ function loadImage(url: string, cache: Map<string, HTMLImageElement>) {
   });
 }
 
+function drawContentLayer(
+  canvas: HTMLCanvasElement,
+  tagColor: string,
+  images: DesignImage[],
+  textLines: TextLine[],
+  cache: Map<string, HTMLImageElement>
+) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  canvas.width = CANVAS_W;
+  canvas.height = CANVAS_H;
+
+  const metrics = drawKeyTagFill(ctx, CANVAS_W, CANVAS_H, tagColor);
+
+  for (const item of images) {
+    const image = cache.get(item.url);
+    if (!image?.complete) continue;
+
+    ctx.save();
+    metrics.drawGeometry(ctx, 0);
+    ctx.clip();
+
+    const centerX = item.x + item.width / 2;
+    const centerY = item.y + item.height / 2;
+    ctx.translate(centerX, centerY);
+    ctx.rotate((item.rotation * Math.PI) / 180);
+    ctx.drawImage(image, -item.width / 2, -item.height / 2, item.width, item.height);
+    ctx.restore();
+  }
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  textLines.forEach((line) => {
+    ctx.font = `${line.fontSize}px "${line.fontFamily}"`;
+    ctx.fillStyle = line.color;
+    ctx.fillText(line.text, line.x, line.y);
+  });
+}
+
+function drawBorderLayer(canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  canvas.width = CANVAS_W;
+  canvas.height = CANVAS_H;
+
+  const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
+  drawKeyTagBorder(ctx, metrics);
+}
+
 export default function DesignerApp() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const contentCanvasRef = useRef<HTMLCanvasElement>(null);
+  const borderCanvasRef = useRef<HTMLCanvasElement>(null);
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
+  const imagesRef = useRef<DesignImage[]>([]);
+  const textLinesRef = useRef<TextLine[]>(defaultLines());
+
   const [tagColor, setTagColor] = useState("#1f1f1f");
   const [images, setImages] = useState<DesignImage[]>([]);
   const [textLines, setTextLines] = useState<TextLine[]>(defaultLines);
@@ -49,59 +113,27 @@ export default function DesignerApp() {
   const [aiResults, setAiResults] = useState<{ url: string; id: string }[]>([]);
   const [message, setMessage] = useState("");
   const dragRef = useRef<{ type: "text" | "image"; id: string; ox: number; oy: number } | null>(null);
-  const drawGen = useRef(0);
 
-  const bgImage = images.find((i) => i.id === selectedBgId) || images[0];
+  imagesRef.current = images;
+  textLinesRef.current = textLines;
+
+  const redrawContent = useCallback(
+    (nextImages = imagesRef.current, nextTextLines = textLinesRef.current, nextTagColor = tagColor) => {
+      const canvas = contentCanvasRef.current;
+      if (!canvas) return;
+      drawContentLayer(canvas, nextTagColor, nextImages, nextTextLines, imageCache.current);
+    },
+    [tagColor]
+  );
 
   useEffect(() => {
-    const gen = ++drawGen.current;
+    const canvas = borderCanvasRef.current;
+    if (canvas) drawBorderLayer(canvas);
+  }, []);
 
-    async function draw() {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      canvas.width = CANVAS_W;
-      canvas.height = CANVAS_H;
-
-      const metrics = drawKeyTagFill(ctx, CANVAS_W, CANVAS_H, tagColor);
-
-      for (const item of images) {
-        try {
-          const image = await loadImage(item.url, imageCache.current);
-          if (gen !== drawGen.current) return;
-
-          ctx.save();
-          metrics.drawGeometry(ctx, 0);
-          ctx.clip();
-
-          const centerX = item.x + item.width / 2;
-          const centerY = item.y + item.height / 2;
-          ctx.translate(centerX, centerY);
-          ctx.rotate((item.rotation * Math.PI) / 180);
-          ctx.drawImage(image, -item.width / 2, -item.height / 2, item.width, item.height);
-          ctx.restore();
-        } catch {
-          // skip broken image URLs
-        }
-      }
-
-      if (gen !== drawGen.current) return;
-
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      textLines.forEach((line) => {
-        ctx.font = `${line.fontSize}px "${line.fontFamily}"`;
-        ctx.fillStyle = line.color;
-        ctx.fillText(line.text, line.x, line.y);
-      });
-
-      drawKeyTagBorder(ctx, metrics);
-    }
-
-    draw();
-  }, [tagColor, images, textLines]);
+  useEffect(() => {
+    redrawContent();
+  }, [tagColor, images, textLines, redrawContent]);
 
   function canvasPoint(e: React.MouseEvent<HTMLCanvasElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -119,12 +151,14 @@ export default function DesignerApp() {
   }
 
   function onCanvasMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
-    const canvas = canvasRef.current;
+    const canvas = contentCanvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!ctx) return;
 
+    const bgImage = imagesRef.current.find((i) => i.id === selectedBgId) || imagesRef.current[0];
     const { x, y } = canvasPoint(e);
-    const hit = [...textLines].reverse().find((line) => hitText(ctx, line, x, y));
+    const hit = [...textLinesRef.current].reverse().find((line) => hitText(ctx, line, x, y));
+
     if (hit) {
       setSelectedTextId(hit.id);
       dragRef.current = { type: "text", id: hit.id, ox: x - hit.x, oy: y - hit.y };
@@ -141,22 +175,33 @@ export default function DesignerApp() {
     const { x, y } = canvasPoint(e);
 
     if (dragRef.current.type === "text") {
-      setTextLines((lines) =>
-        lines.map((l) => (l.id === dragRef.current!.id ? { ...l, x: x - dragRef.current!.ox, y: y - dragRef.current!.oy } : l))
+      const next = textLinesRef.current.map((line) =>
+        line.id === dragRef.current!.id ? { ...line, x: x - dragRef.current!.ox, y: y - dragRef.current!.oy } : line
       );
+      textLinesRef.current = next;
+      redrawContent(imagesRef.current, next);
     } else {
-      setImages((imgs) =>
-        imgs.map((img) => (img.id === dragRef.current!.id ? { ...img, x: x - dragRef.current!.ox, y: y - dragRef.current!.oy } : img))
+      const next = imagesRef.current.map((img) =>
+        img.id === dragRef.current!.id ? { ...img, x: x - dragRef.current!.ox, y: y - dragRef.current!.oy } : img
       );
+      imagesRef.current = next;
+      redrawContent(next, textLinesRef.current);
     }
   }
 
   function onCanvasMouseUp() {
+    if (!dragRef.current) return;
+    if (dragRef.current.type === "text") {
+      setTextLines([...textLinesRef.current]);
+    } else {
+      setImages([...imagesRef.current]);
+    }
     dragRef.current = null;
   }
 
   async function onUpload(file: File) {
     const url = URL.createObjectURL(file);
+    await preloadImage(url, imageCache.current);
     const img: DesignImage = { id: uid(), url, x: 0, y: 0, width: CANVAS_W, height: CANVAS_H, rotation: 0 };
     setImages((prev) => [...prev, img]);
     setSelectedBgId(img.id);
@@ -181,7 +226,8 @@ export default function DesignerApp() {
     }
   }
 
-  function pickAiImage(url: string) {
+  async function pickAiImage(url: string) {
+    await preloadImage(url, imageCache.current);
     const img: DesignImage = { id: uid(), url, x: 0, y: 0, width: CANVAS_W, height: CANVAS_H, rotation: 0 };
     setImages((prev) => [...prev, img]);
     setSelectedBgId(img.id);
@@ -204,8 +250,22 @@ export default function DesignerApp() {
   }
 
   async function submitDesign() {
-    const canvas = canvasRef.current;
-    const previewDataUrl = canvas?.toDataURL("image/png");
+    const canvas = contentCanvasRef.current;
+    const border = borderCanvasRef.current;
+    let previewDataUrl = canvas?.toDataURL("image/png");
+
+    if (canvas && border) {
+      const merged = document.createElement("canvas");
+      merged.width = CANVAS_W;
+      merged.height = CANVAS_H;
+      const ctx = merged.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(canvas, 0, 0);
+        ctx.drawImage(border, 0, 0);
+        previewDataUrl = merged.toDataURL("image/png");
+      }
+    }
+
     const payload: DesignPayload = { tagColor, images, textLines, backgroundImageId: selectedBgId };
     const res = await fetch("/api/designs/submit", {
       method: "POST",
@@ -280,15 +340,25 @@ export default function DesignerApp() {
           <h3>Live preview</h3>
           <p className="muted">Anything inside the red shape will be engraved on the key tag.</p>
           <div className="preview-wrap">
-            <canvas
-              ref={canvasRef}
-              width={CANVAS_W}
-              height={CANVAS_H}
-              onMouseDown={onCanvasMouseDown}
-              onMouseMove={onCanvasMouseMove}
-              onMouseUp={onCanvasMouseUp}
-              onMouseLeave={onCanvasMouseUp}
-            />
+            <div className="preview-stack">
+              <canvas
+                ref={contentCanvasRef}
+                width={CANVAS_W}
+                height={CANVAS_H}
+                className="preview-content"
+                onMouseDown={onCanvasMouseDown}
+                onMouseMove={onCanvasMouseMove}
+                onMouseUp={onCanvasMouseUp}
+                onMouseLeave={onCanvasMouseUp}
+              />
+              <canvas
+                ref={borderCanvasRef}
+                width={CANVAS_W}
+                height={CANVAS_H}
+                className="preview-border"
+                aria-hidden="true"
+              />
+            </div>
           </div>
           <p className="muted">{CANVAS_W} × {CANVAS_H} px — Saved as JSON + image</p>
           <p className="muted">
