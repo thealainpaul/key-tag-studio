@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: key-tag-studio
+    runtime: node
+    buildCommand: npm install && npx prisma db push && npm run db:seed && npm run build
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        value: file:./prisma/prod.db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: admin@example.com
+      - key: ADMIN_PASSWORD
+        generateValue: true

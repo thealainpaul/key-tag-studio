@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id           String @id @default(cuid())
+  email        String @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model Design {
+  id             String   @id @default(cuid())
+  status         String   @default("pending")
+  tagColor       String   @default("#1f1f1f")
+  designJson     String
+  previewDataUrl String?
+  rejectionReason String?
+  source         String   @default("manual")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
