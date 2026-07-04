@@ -57,14 +57,16 @@ export function drawKeyTagShape(
 ): TagMetrics {
   const metrics = getTagMetrics(canvasWidth, canvasHeight);
 
-  ctx.fillStyle = tagColor;
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
   ctx.save();
   metrics.drawGeometry(ctx, 0);
-  ctx.clip();
   ctx.fillStyle = tagColor;
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  metrics.drawGeometry(ctx, 0);
   ctx.strokeStyle = "#ef4444";
   ctx.lineWidth = Math.round(2 * metrics.mmToPx);
   ctx.stroke();
