@@ -3,10 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
+import { CANVAS_H, CANVAS_W, drawKeyTagShape, KEYTAG_SPECS, SAFE_H, SAFE_W } from "@/lib/keytag-shape";
 
 const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
-const CANVAS_W = 1086;
-const CANVAS_H = 845;
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -14,13 +13,30 @@ function uid() {
 
 function defaultLines(): TextLine[] {
   return [
-    { id: uid(), text: "RETURN TO POSTBOX", fontFamily: "Arial", fontSize: 32, color: "#ffffff", x: 200, y: 200, linkedImageId: null },
-    { id: uid(), text: "DROP IN MAILBOX", fontFamily: "Arial", fontSize: 32, color: "#ffffff", x: 200, y: 500, linkedImageId: null },
+    { id: uid(), text: "RETURN TO POSTBOX", fontFamily: "Arial", fontSize: 32, color: "#ffffff", x: CANVAS_W * 0.5, y: CANVAS_H * 0.45, linkedImageId: null },
+    { id: uid(), text: "DROP IN MAILBOX", fontFamily: "Arial", fontSize: 32, color: "#ffffff", x: CANVAS_W * 0.5, y: CANVAS_H * 0.52, linkedImageId: null },
   ];
+}
+
+function loadImage(url: string, cache: Map<string, HTMLImageElement>) {
+  const existing = cache.get(url);
+  if (existing?.complete) return Promise.resolve(existing);
+
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+      cache.set(url, image);
+      resolve(image);
+    };
+    image.onerror = reject;
+    image.src = url;
+  });
 }
 
 export default function DesignerApp() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
   const [tagColor, setTagColor] = useState("#1f1f1f");
   const [images, setImages] = useState<DesignImage[]>([]);
   const [textLines, setTextLines] = useState<TextLine[]>(defaultLines);
@@ -37,56 +53,79 @@ export default function DesignerApp() {
   const bgImage = images.find((i) => i.id === selectedBgId) || images[0];
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function draw() {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      canvas.width = CANVAS_W;
+      canvas.height = CANVAS_H;
+
+      const metrics = drawKeyTagShape(ctx, CANVAS_W, CANVAS_H, tagColor);
+
+      for (const item of images) {
+        try {
+          const image = await loadImage(item.url, imageCache.current);
+          if (cancelled) return;
+
+          ctx.save();
+          metrics.drawGeometry(ctx, 0);
+          ctx.clip();
+
+          const centerX = item.x + item.width / 2;
+          const centerY = item.y + item.height / 2;
+          ctx.translate(centerX, centerY);
+          ctx.rotate((item.rotation * Math.PI) / 180);
+          ctx.drawImage(image, -item.width / 2, -item.height / 2, item.width, item.height);
+          ctx.restore();
+        } catch {
+          // skip broken image URLs
+        }
+      }
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      textLines.forEach((line) => {
+        ctx.font = `${line.fontSize}px "${line.fontFamily}"`;
+        ctx.fillStyle = line.color;
+        ctx.fillText(line.text, line.x, line.y);
+      });
+    }
+
     draw();
-  }, [tagColor, images, textLines, bgImage]);
-
-  function draw() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.fillStyle = tagColor;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-
-    const drawImg = (img: DesignImage) => {
-      const image = new Image();
-      image.crossOrigin = "anonymous";
-      image.src = img.url;
-      image.onload = () => {
-        ctx.save();
-        ctx.translate(img.x + img.width / 2, img.y + img.height / 2);
-        ctx.rotate((img.rotation * Math.PI) / 180);
-        ctx.drawImage(image, -img.width / 2, -img.height / 2, img.width, img.height);
-        ctx.restore();
-      };
+    return () => {
+      cancelled = true;
     };
+  }, [tagColor, images, textLines]);
 
-    images.forEach(drawImg);
+  function canvasPoint(e: React.MouseEvent<HTMLCanvasElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * CANVAS_W,
+      y: ((e.clientY - rect.top) / rect.height) * CANVAS_H,
+    };
+  }
 
-    textLines.forEach((line) => {
-      ctx.fillStyle = line.color;
-      ctx.font = `${line.fontSize}px ${line.fontFamily}`;
-      ctx.fillText(line.text, line.x, line.y);
-    });
-
-    // engraving safe area guide
-    ctx.strokeStyle = "#ef4444";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(60, 60, CANVAS_W - 120, CANVAS_H - 120);
+  function hitText(ctx: CanvasRenderingContext2D, line: TextLine, x: number, y: number) {
+    ctx.font = `${line.fontSize}px "${line.fontFamily}"`;
+    const w = ctx.measureText(line.text).width;
+    const h = line.fontSize * 1.3;
+    return x >= line.x - w / 2 - 12 && x <= line.x + w / 2 + 12 && y >= line.y - h / 2 - 12 && y <= line.y + h / 2 + 12;
   }
 
   function onCanvasMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const scaleX = CANVAS_W / rect.width;
-    const scaleY = CANVAS_H / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!ctx) return;
 
-    const hitText = [...textLines].reverse().find((t) => x >= t.x - 10 && x <= t.x + 400 && y >= t.y - t.fontSize && y <= t.y + 10);
-    if (hitText) {
-      setSelectedTextId(hitText.id);
-      dragRef.current = { type: "text", id: hitText.id, ox: x - hitText.x, oy: y - hitText.y };
+    const { x, y } = canvasPoint(e);
+    const hit = [...textLines].reverse().find((line) => hitText(ctx, line, x, y));
+    if (hit) {
+      setSelectedTextId(hit.id);
+      dragRef.current = { type: "text", id: hit.id, ox: x - hit.x, oy: y - hit.y };
       return;
     }
     if (bgImage) {
@@ -97,11 +136,7 @@ export default function DesignerApp() {
 
   function onCanvasMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
     if (!dragRef.current) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const scaleX = CANVAS_W / rect.width;
-    const scaleY = CANVAS_H / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
+    const { x, y } = canvasPoint(e);
 
     if (dragRef.current.type === "text") {
       setTextLines((lines) =>
@@ -120,7 +155,7 @@ export default function DesignerApp() {
 
   async function onUpload(file: File) {
     const url = URL.createObjectURL(file);
-    const img: DesignImage = { id: uid(), url, x: 100, y: 100, width: 500, height: 400, rotation: 0 };
+    const img: DesignImage = { id: uid(), url, x: 0, y: 0, width: CANVAS_W, height: CANVAS_H, rotation: 0 };
     setImages((prev) => [...prev, img]);
     setSelectedBgId(img.id);
   }
@@ -145,7 +180,7 @@ export default function DesignerApp() {
   }
 
   function pickAiImage(url: string) {
-    const img: DesignImage = { id: uid(), url, x: 80, y: 80, width: 900, height: 680, rotation: 0 };
+    const img: DesignImage = { id: uid(), url, x: 0, y: 0, width: CANVAS_W, height: CANVAS_H, rotation: 0 };
     setImages((prev) => [...prev, img]);
     setSelectedBgId(img.id);
     setAiOpen(false);
@@ -161,7 +196,7 @@ export default function DesignerApp() {
       lines.map((line, i) => {
         const pos = s.textLines[i];
         if (!pos) return line;
-        return { ...line, text: pos.text, y: pos.y * CANVAS_H };
+        return { ...line, text: pos.text, x: CANVAS_W * 0.5, y: pos.y * CANVAS_H };
       })
     );
   }
@@ -211,12 +246,15 @@ export default function DesignerApp() {
             <button className="btn secondary" onClick={suggestLayout}>⚡ Suggest</button>
           </div>
 
+          {images.length === 0 && <p className="muted" style={{ marginBottom: "1rem" }}>No images added yet. Click empty space on the preview to drag a background image.</p>}
+
           <div style={{ marginBottom: "1rem" }}>
-            <button className="btn secondary" onClick={() => setTextLines((l) => [...l, { id: uid(), text: "NEW LINE", fontFamily: "Arial", fontSize: 28, color: "#ffffff", x: 150, y: 300, linkedImageId: null }])}>+ Add line</button>
+            <button className="btn secondary" onClick={() => setTextLines((l) => [...l, { id: uid(), text: "NEW LINE", fontFamily: "Arial", fontSize: 28, color: "#ffffff", x: CANVAS_W * 0.5, y: CANVAS_H * 0.5, linkedImageId: null }])}>+ Add line</button>
           </div>
 
-          {textLines.map((line) => (
+          {textLines.map((line, index) => (
             <div key={line.id} className="card" style={{ marginBottom: "0.75rem", borderColor: selectedTextId === line.id ? "var(--primary)" : undefined }}>
+              <p className="muted" style={{ marginTop: 0 }}>Text #{index + 1}</p>
               <div className="field"><label>Text</label><input value={line.text} onChange={(e) => updateLine(line.id, { text: e.target.value })} /></div>
               <div className="field"><label>Font</label>
                 <select value={line.fontFamily} onChange={(e) => updateLine(line.id, { fontFamily: e.target.value })}>
@@ -236,20 +274,28 @@ export default function DesignerApp() {
           {message && <p className="muted" style={{ marginTop: "0.75rem" }}>{message}</p>}
         </div>
 
-        <div className="card">
+        <div className="card preview-panel">
           <h3>Live preview</h3>
           <p className="muted">Anything inside the red shape will be engraved on the key tag.</p>
-          <canvas
-            ref={canvasRef}
-            width={CANVAS_W}
-            height={CANVAS_H}
-            style={{ width: "100%", height: "auto", borderRadius: 8, border: "1px solid var(--border)", cursor: "grab" }}
-            onMouseDown={onCanvasMouseDown}
-            onMouseMove={onCanvasMouseMove}
-            onMouseUp={onCanvasMouseUp}
-            onMouseLeave={onCanvasMouseUp}
-          />
-          <p className="muted">1086 × 845 px — Saved as JSON + image</p>
+          <div className="preview-wrap">
+            <canvas
+              ref={canvasRef}
+              width={CANVAS_W}
+              height={CANVAS_H}
+              onMouseDown={onCanvasMouseDown}
+              onMouseMove={onCanvasMouseMove}
+              onMouseUp={onCanvasMouseUp}
+              onMouseLeave={onCanvasMouseUp}
+            />
+          </div>
+          <p className="muted">{CANVAS_W} × {CANVAS_H} px — Saved as JSON + image</p>
+          <p className="muted">
+            Design area: {KEYTAG_SPECS.designAreaMm.width} × {KEYTAG_SPECS.designAreaMm.height} mm ({CANVAS_W} × {CANVAS_H} px @ {KEYTAG_SPECS.dpi}dpi / {KEYTAG_SPECS.scale * 100}%)
+          </p>
+          <p className="muted">
+            Safe engraving area: {KEYTAG_SPECS.safeAreaMm.width} × {KEYTAG_SPECS.safeAreaMm.height} mm ({SAFE_W} × {SAFE_H} px)
+          </p>
+          <p className="muted">Tip: Click text to drag it. Click empty space to drag the background image.</p>
         </div>
       </div>
 

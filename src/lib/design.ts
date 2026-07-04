@@ -26,7 +26,9 @@ export type DesignPayload = {
   backgroundImageId: string | null;
 };
 
-export function pollinationsUrl(prompt: string, seed: number, width = 1086, height = 845) {
+import { CANVAS_H, CANVAS_W } from "./keytag-shape";
+
+export function pollinationsUrl(prompt: string, seed: number, width = CANVAS_W, height = CANVAS_H) {
   const encoded = encodeURIComponent(prompt);
   return `https://image.pollinations.ai/prompt/${encoded}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
 }
