@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
-import { CANVAS_H, CANVAS_W, drawKeyTagShape, KEYTAG_SPECS, SAFE_H, SAFE_W } from "@/lib/keytag-shape";
+import { CANVAS_H, CANVAS_W, drawKeyTagBorder, drawKeyTagFill, KEYTAG_SPECS, SAFE_H, SAFE_W } from "@/lib/keytag-shape";
 
 const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
 
@@ -49,11 +49,12 @@ export default function DesignerApp() {
   const [aiResults, setAiResults] = useState<{ url: string; id: string }[]>([]);
   const [message, setMessage] = useState("");
   const dragRef = useRef<{ type: "text" | "image"; id: string; ox: number; oy: number } | null>(null);
+  const drawGen = useRef(0);
 
   const bgImage = images.find((i) => i.id === selectedBgId) || images[0];
 
   useEffect(() => {
-    let cancelled = false;
+    const gen = ++drawGen.current;
 
     async function draw() {
       const canvas = canvasRef.current;
@@ -64,12 +65,12 @@ export default function DesignerApp() {
       canvas.width = CANVAS_W;
       canvas.height = CANVAS_H;
 
-      const metrics = drawKeyTagShape(ctx, CANVAS_W, CANVAS_H, tagColor);
+      const metrics = drawKeyTagFill(ctx, CANVAS_W, CANVAS_H, tagColor);
 
       for (const item of images) {
         try {
           const image = await loadImage(item.url, imageCache.current);
-          if (cancelled) return;
+          if (gen !== drawGen.current) return;
 
           ctx.save();
           metrics.drawGeometry(ctx, 0);
@@ -86,6 +87,8 @@ export default function DesignerApp() {
         }
       }
 
+      if (gen !== drawGen.current) return;
+
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       textLines.forEach((line) => {
@@ -93,12 +96,11 @@ export default function DesignerApp() {
         ctx.fillStyle = line.color;
         ctx.fillText(line.text, line.x, line.y);
       });
+
+      drawKeyTagBorder(ctx, metrics);
     }
 
     draw();
-    return () => {
-      cancelled = true;
-    };
   }, [tagColor, images, textLines]);
 
   function canvasPoint(e: React.MouseEvent<HTMLCanvasElement>) {

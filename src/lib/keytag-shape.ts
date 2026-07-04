@@ -49,7 +49,7 @@ export function getTagMetrics(canvasWidth: number, canvasHeight: number): TagMet
   return { mmToPx: mmToPxVal, drawGeometry };
 }
 
-export function drawKeyTagShape(
+export function drawKeyTagFill(
   ctx: CanvasRenderingContext2D,
   canvasWidth: number,
   canvasHeight: number,
@@ -65,12 +65,25 @@ export function drawKeyTagShape(
   ctx.fill();
   ctx.restore();
 
+  return metrics;
+}
+
+export function drawKeyTagBorder(ctx: CanvasRenderingContext2D, metrics: TagMetrics) {
   ctx.save();
   metrics.drawGeometry(ctx, 0);
   ctx.strokeStyle = "#ef4444";
   ctx.lineWidth = Math.round(2 * metrics.mmToPx);
   ctx.stroke();
   ctx.restore();
+}
 
+export function drawKeyTagShape(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  tagColor: string
+): TagMetrics {
+  const metrics = drawKeyTagFill(ctx, canvasWidth, canvasHeight, tagColor);
+  drawKeyTagBorder(ctx, metrics);
   return metrics;
 }
