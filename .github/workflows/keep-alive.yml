@@ -1,0 +1,14 @@
+name: Keep site awake
+
+on:
+  schedule:
+    # Every 5 minutes — keeps Render free tier from sleeping (~15 min idle timeout)
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: curl -fsS --max-time 30 "https://key-tag-studio-1.onrender.com/api/health"

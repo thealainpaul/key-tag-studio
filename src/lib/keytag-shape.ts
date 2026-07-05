@@ -49,6 +49,30 @@ export function getTagMetrics(canvasWidth: number, canvasHeight: number): TagMet
   return { mmToPx: mmToPxVal, drawGeometry };
 }
 
+/** SVG path for instant server-side preview before JavaScript loads. */
+export function keyTagSvgPath(canvasWidth = CANVAS_W, canvasHeight = CANVAS_H): string {
+  const mmToPxVal = canvasWidth / 46.0;
+  const leftH = Math.round(14.0 * mmToPxVal);
+  const cornerRadius = Math.round(4 * mmToPxVal);
+  const leftTopY = Math.round((canvasHeight - leftH) / 2);
+  const leftBottomY = leftTopY + leftH;
+  const rX = canvasWidth;
+  const rY_b = canvasHeight;
+  return [
+    `M 0 ${leftTopY}`,
+    `L ${rX - cornerRadius} 0`,
+    `Q ${rX} 0 ${rX} ${cornerRadius}`,
+    `L ${rX} ${rY_b - cornerRadius}`,
+    `Q ${rX} ${rY_b} ${rX - cornerRadius} ${rY_b}`,
+    `L 0 ${leftBottomY}`,
+    "Z",
+  ].join(" ");
+}
+
+export function keyTagBorderWidth(canvasWidth = CANVAS_W): number {
+  return Math.round(2 * (canvasWidth / 46.0));
+}
+
 export function drawKeyTagFill(
   ctx: CanvasRenderingContext2D,
   canvasWidth: number,

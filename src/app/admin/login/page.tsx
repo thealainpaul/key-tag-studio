@@ -6,8 +6,8 @@ import Link from "next/link";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("password@123456");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   async function onSubmit(e: React.FormEvent) {
@@ -32,12 +32,11 @@ export default function AdminLoginPage() {
       <div className="card">
         <h3>Admin Login</h3>
         <form onSubmit={onSubmit}>
-          <div className="field"><label>Email</label><input value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
-          <div className="field"><label>Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
+          <div className="field"><label>Email</label><input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+          <div className="field"><label>Password</label><input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
           {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
           <button className="btn" type="submit">Login</button>
         </form>
-        <p className="muted" style={{ marginTop: "1rem" }}>Default: admin@example.com / password@123456</p>
       </div>
     </div>
   );

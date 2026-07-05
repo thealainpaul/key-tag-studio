@@ -3,13 +3,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { DesignPayload } from "@/lib/design";
+import { downloadDataUrl, preloadAllImages, printFileDataUrl } from "@/lib/canvas-render";
 
 type Design = {
   id: string;
   status: string;
   tagColor: string;
+  designJson: string;
   previewDataUrl: string | null;
   rejectionReason: string | null;
+  source: string;
   createdAt: string;
 };
 
@@ -49,6 +53,14 @@ export default function AdminDesignsPage() {
     load();
   }
 
+  async function downloadPrint(d: Design) {
+    const payload: DesignPayload = JSON.parse(d.designJson);
+    const cache = new Map<string, HTMLImageElement>();
+    await preloadAllImages(payload.images, cache);
+    const dataUrl = printFileDataUrl(payload, cache);
+    downloadDataUrl(dataUrl, `keytag-print-${d.id}.png`);
+  }
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/admin/login");
@@ -62,27 +74,30 @@ export default function AdminDesignsPage() {
       </div>
       <div className="card">
         <h3>Submitted Designs</h3>
-        <p className="muted">Review user layouts, approve for production, or request changes.</p>
         {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
-        <p className="muted">Showing {designs.length} designs</p>
         {designs.map((d, i) => (
           <div key={d.id} className="card" style={{ marginTop: "0.75rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
               <div>
                 <strong>#{designs.length - i}</strong> · <span className={`status-${d.status}`}>{d.status}</span>
+                {d.source === "auto_fit" && <span className="muted"> · auto-fit upload</span>}
                 <div className="muted">{new Date(d.createdAt).toLocaleString()}</div>
                 {d.rejectionReason && <div className="muted">Reason: {d.rejectionReason}</div>}
               </div>
               {d.previewDataUrl && <img src={d.previewDataUrl} alt="preview" style={{ width: 180, borderRadius: 8, border: "1px solid var(--border)" }} />}
             </div>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem", flexWrap: "wrap" }}>
+              <Link href={`/admin/designs/${d.id}`} className="btn secondary">Edit / adjust</Link>
+              <button className="btn secondary" onClick={() => downloadPrint(d)}>Download print file</button>
+            </div>
             {d.status === "pending" && (
               <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem", flexWrap: "wrap" }}>
-                <button className="btn success" onClick={() => act(d.id, "approve")}>✓ Approve</button>
-                <input placeholder="Reason for rejection" value={reasons[d.id] || ""} onChange={(e) => setReasons((r) => ({ ...r, [d.id]: e.target.value }))} style={{ flex: 1, minWidth: 200 }} />
-                <button className="btn danger" onClick={() => act(d.id, "reject")}>✕ Reject</button>
+                <button className="btn success" onClick={() => act(d.id, "approve")}>Approve</button>
+                <input placeholder="Rejection reason" value={reasons[d.id] || ""} onChange={(e) => setReasons((r) => ({ ...r, [d.id]: e.target.value }))} style={{ flex: 1, minWidth: 200 }} />
+                <button className="btn danger" onClick={() => act(d.id, "reject")}>Reject</button>
               </div>
             )}
-            <button className="btn danger" style={{ marginTop: "0.5rem" }} onClick={() => remove(d.id)}>🗑️ Delete</button>
+            <button className="btn danger" style={{ marginTop: "0.5rem" }} onClick={() => remove(d.id)}>Delete</button>
           </div>
         ))}
       </div>

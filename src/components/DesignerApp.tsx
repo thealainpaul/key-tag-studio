@@ -1,83 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
-import { coverFitInCanvas } from "@/lib/design";
-import { CANVAS_H, CANVAS_W, drawKeyTagBorder, drawKeyTagFill, getTagMetrics } from "@/lib/keytag-shape";
+import { naturalCenterPlacement } from "@/lib/design";
+import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
+import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
+import {
+  drawBorderLayer,
+  drawContentLayer,
+  mergedPreviewDataUrl,
+  payloadForSubmit,
+  preloadImage,
+} from "@/lib/canvas-render";
+import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
 
 const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
 const AI_SLOT_COUNT = 3;
 
-type AiSlot = { id: string; url: string | null; error?: string; status: "loading" | "ok" | "error" };
+type AiSlot = AiSlotResult;
+
+const AI_STAGGER_MS = 15000;
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
-}
-
-function preloadImage(url: string, cache: Map<string, HTMLImageElement>) {
-  const existing = cache.get(url);
-  if (existing?.complete) return Promise.resolve(existing);
-
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.onload = () => {
-      cache.set(url, image);
-      resolve(image);
-    };
-    image.onerror = reject;
-    image.src = url;
-  });
-}
-
-function drawContentLayer(
-  canvas: HTMLCanvasElement,
-  tagColor: string,
-  images: DesignImage[],
-  textLines: TextLine[],
-  cache: Map<string, HTMLImageElement>
-) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-
-  canvas.width = CANVAS_W;
-  canvas.height = CANVAS_H;
-
-  const metrics = drawKeyTagFill(ctx, CANVAS_W, CANVAS_H, tagColor);
-
-  for (const item of images) {
-    const image = cache.get(item.url);
-    if (!image?.complete) continue;
-
-    ctx.save();
-    metrics.drawGeometry(ctx, 0);
-    ctx.clip();
-
-    const centerX = item.x + item.width / 2;
-    const centerY = item.y + item.height / 2;
-    ctx.translate(centerX, centerY);
-    ctx.rotate((item.rotation * Math.PI) / 180);
-    ctx.drawImage(image, -item.width / 2, -item.height / 2, item.width, item.height);
-    ctx.restore();
-  }
-
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  textLines.forEach((line) => {
-    if (!line.text.trim()) return;
-    ctx.font = `${line.fontSize}px "${line.fontFamily}"`;
-    ctx.fillStyle = line.color;
-    ctx.fillText(line.text, line.x, line.y);
-  });
-}
-
-function drawBorderLayer(canvas: HTMLCanvasElement) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  canvas.width = CANVAS_W;
-  canvas.height = CANVAS_H;
-  drawKeyTagBorder(ctx, getTagMetrics(CANVAS_W, CANVAS_H));
 }
 
 export default function DesignerApp() {
@@ -99,7 +45,11 @@ export default function DesignerApp() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
   const [aiResults, setAiResults] = useState<AiSlot[]>([]);
+  const [aiRunId, setAiRunId] = useState(0);
+  const [aiSeeds, setAiSeeds] = useState<number[]>([]);
   const [message, setMessage] = useState("");
+  const [fitMode, setFitMode] = useState<"auto" | "manual">("manual");
+  const [canvasReady, setCanvasReady] = useState(false);
   const dragRef = useRef<{ type: "text" | "image"; id: string; ox: number; oy: number } | null>(null);
   const tagColorRef = useRef(tagColor);
 
@@ -117,11 +67,12 @@ export default function DesignerApp() {
     [tagColor]
   );
 
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      const canvas = borderCanvasRef.current;
-      if (canvas) drawBorderLayer(canvas);
-    });
+  useLayoutEffect(() => {
+    const content = contentCanvasRef.current;
+    const border = borderCanvasRef.current;
+    if (content) drawContentLayer(content, tagColor, [], [], imageCache.current);
+    if (border) drawBorderLayer(border);
+    setCanvasReady(true);
   }, []);
 
   useEffect(() => {
@@ -219,65 +170,55 @@ export default function DesignerApp() {
     };
   }, [redrawContent]);
 
-  async function addFittedImage(url: string) {
+  async function addImageAtNaturalSize(url: string) {
     const image = await preloadImage(url, imageCache.current);
-    const fit = coverFitInCanvas(image.naturalWidth, image.naturalHeight);
-    const img: DesignImage = { id: uid(), url, ...fit, rotation: 0 };
+    const placement = naturalCenterPlacement(image.naturalWidth, image.naturalHeight);
+    const img: DesignImage = { id: uid(), url, ...placement, rotation: 0 };
     setImages((prev) => [...prev, img]);
     setSelectedBgId(img.id);
   }
 
   async function onUpload(file: File) {
     const url = URL.createObjectURL(file);
-    await addFittedImage(url);
+    await addImageAtNaturalSize(url);
+    setFitMode("auto");
   }
+
+  useEffect(() => {
+    if (!aiLoading || aiResults.length < AI_SLOT_COUNT) return;
+    if (!aiResults.every((s) => s.status !== "loading")) return;
+    setAiLoading(false);
+    const ok = aiResults.filter((s) => s.status === "ok").length;
+    if (ok < AI_SLOT_COUNT) {
+      setAiError(`Only ${ok} of 3 images were generated. Please try again.`);
+    } else {
+      setAiError("");
+    }
+  }, [aiResults, aiLoading]);
 
   async function generateAi() {
     setAiLoading(true);
     setAiError("");
+    const base = Math.floor(Math.random() * 900_000) + 1000;
+    const runId = Date.now();
+    setAiRunId(runId);
+    setAiSeeds([base, base + 50_000, base + 100_000]);
     setAiResults(
       Array.from({ length: AI_SLOT_COUNT }, (_, i) => ({
-        id: `loading-${i}`,
+        id: `ai-${runId}-${i}`,
         url: null,
         status: "loading" as const,
       }))
     );
-    try {
-      const res = await fetch("/api/designer/generate-background", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: aiPrompt }),
-      });
-      const data = await res.json();
-      const slots: AiSlot[] = (data.images ?? []).map(
-        (img: { id: string; url: string | null; error?: string }) => ({
-          id: img.id,
-          url: img.url,
-          error: img.error,
-          status: img.url ? ("ok" as const) : ("error" as const),
-        })
-      );
-      while (slots.length < AI_SLOT_COUNT) {
-        slots.push({ id: `empty-${slots.length}`, url: null, status: "error", error: "Missing result" });
-      }
-      setAiResults(slots.slice(0, AI_SLOT_COUNT));
-      if (!data.success) throw new Error(data.error || "Failed to generate images");
-    } catch (err) {
-      setAiError(err instanceof Error ? err.message : "Failed to generate images");
-      setAiResults((prev) =>
-        prev.map((slot) =>
-          slot.status === "loading" ? { ...slot, status: "error" as const, error: "Failed" } : slot
-        )
-      );
-    } finally {
-      setAiLoading(false);
-    }
   }
 
   async function pickAiImage(url: string) {
-    await addFittedImage(url);
+    await addImageAtNaturalSize(url);
+    setFitMode("manual");
     setAiOpen(false);
     setAiResults([]);
+    setAiSeeds([]);
+    setAiLoading(false);
   }
 
   function addTextLine() {
@@ -300,21 +241,12 @@ export default function DesignerApp() {
   async function submitDesign() {
     const canvas = contentCanvasRef.current;
     const border = borderCanvasRef.current;
-    let previewDataUrl = canvas?.toDataURL("image/png");
+    if (!canvas || !border) return;
 
-    if (canvas && border) {
-      const merged = document.createElement("canvas");
-      merged.width = CANVAS_W;
-      merged.height = CANVAS_H;
-      const ctx = merged.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(canvas, 0, 0);
-        ctx.drawImage(border, 0, 0);
-        previewDataUrl = merged.toDataURL("image/png");
-      }
-    }
+    const previewDataUrl = mergedPreviewDataUrl(canvas, border);
+    const raw: DesignPayload = { tagColor, images, textLines, backgroundImageId: selectedBgId, fitMode };
+    const payload = await payloadForSubmit(raw, imageCache.current);
 
-    const payload: DesignPayload = { tagColor, images, textLines, backgroundImageId: selectedBgId };
     const res = await fetch("/api/designs/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -331,16 +263,14 @@ export default function DesignerApp() {
   return (
     <div className="designer-page">
       <div className="designer-nav">
-        <Link href="/"><strong>Key Tag Studio</strong></Link>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <Link href="/admin/login" className="muted" style={{ fontSize: "0.8rem" }}>Admin</Link>
-          <button className="btn compact" onClick={submitDesign}>Submit</button>
-        </div>
+        <Link href="/admin/login" className="muted" style={{ fontSize: "0.8rem" }}>Admin</Link>
+        <button className="btn compact" onClick={submitDesign}>Submit</button>
       </div>
 
       <div className="preview-panel">
         <div className="preview-wrap">
           <div className="preview-stack">
+            {!canvasReady && <KeyTagPlaceholder />}
             <canvas
               ref={contentCanvasRef}
               width={CANVAS_W}
@@ -415,7 +345,15 @@ export default function DesignerApp() {
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="field">
               <textarea rows={2} value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="Describe your image…" />
+              <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
+                Images are wide and short to fit the tag. Tall things like guitars are created on their side so the full shape shows.
+              </p>
             </div>
+            {aiLoading && (
+              <p className="muted" style={{ margin: "0.75rem 0 0", fontSize: "0.9rem" }}>
+                Your images will appear shortly — please be patient. Each one can take up to a minute to generate.
+              </p>
+            )}
             {aiError && <p style={{ color: "var(--danger)" }}>{aiError}</p>}
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
               <button className="btn" onClick={generateAi} disabled={aiLoading || !aiPrompt.trim()}>
@@ -423,25 +361,25 @@ export default function DesignerApp() {
               </button>
               <button className="btn secondary" onClick={() => setAiOpen(false)}>Close</button>
             </div>
-            {(aiLoading || aiResults.length > 0) && (
+            {(aiLoading || aiResults.length > 0) && aiSeeds.length === AI_SLOT_COUNT && (
               <div className="ai-grid">
-                {(aiResults.length > 0
-                  ? aiResults
-                  : Array.from({ length: AI_SLOT_COUNT }, (_, i) => ({
-                      id: `placeholder-${i}`,
-                      url: null,
-                      status: "loading" as const,
-                    }))
-                ).map((slot) => (
-                  <div key={slot.id} className={`ai-slot ai-slot-${slot.status}`}>
-                    {slot.status === "ok" && slot.url ? (
-                      <img src={slot.url} alt="" onClick={() => pickAiImage(slot.url!)} />
-                    ) : slot.status === "error" ? (
-                      <span className="ai-slot-msg">{slot.error || "Failed"}</span>
-                    ) : (
-                      <span className="ai-slot-msg">Generating…</span>
-                    )}
-                  </div>
+                {aiSeeds.map((seed, i) => (
+                  <AiImageSlot
+                    key={`${aiRunId}-${i}`}
+                    id={aiResults[i]?.id ?? `ai-${aiRunId}-${i}`}
+                    prompt={aiPrompt}
+                    seed={seed}
+                    waitBeforeStart={i * AI_STAGGER_MS}
+                    active={aiLoading}
+                    onUpdate={(slot) => {
+                      setAiResults((prev) => {
+                        const next = [...prev];
+                        next[i] = slot;
+                        return next;
+                      });
+                    }}
+                    onPick={pickAiImage}
+                  />
                 ))}
               </div>
             )}
