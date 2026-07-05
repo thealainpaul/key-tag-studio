@@ -3,23 +3,32 @@ import { pollinationsUrl } from "@/lib/design";
 
 export const maxDuration = 120;
 
-const AI_W = 1086;
-const AI_H = 470;
+const AI_W = 512;
+const AI_H = 221;
 const SEEDS = [101, 202, 303];
+const MODELS = ["turbo", "turbo", "flux"] as const;
+const STAGGER_MS = 2000;
+const MAX_ATTEMPTS = 4;
 
-async function fetchOne(prompt: string, seed: number): Promise<string | null> {
-  const url = pollinationsUrl(prompt, seed, AI_W, AI_H);
+function backoffMs(attempt: number) {
+  return 1500 * Math.pow(2, attempt);
+}
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+async function fetchOne(prompt: string, seed: number, model: string): Promise<string | null> {
+  const url = pollinationsUrl(prompt, seed, AI_W, AI_H, model);
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, backoffMs(attempt - 1)));
+
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(90000) });
+      const res = await fetch(url, { signal: AbortSignal.timeout(60000) });
       if (!res.ok) continue;
       const buf = await res.arrayBuffer();
       if (buf.byteLength < 1000) continue;
       const type = res.headers.get("content-type") || "image/jpeg";
       return `data:${type};base64,${Buffer.from(buf).toString("base64")}`;
     } catch {
-      await new Promise((r) => setTimeout(r, 1500));
+      // retry with backoff
     }
   }
   return null;
@@ -32,16 +41,29 @@ export async function POST(req: NextRequest) {
   }
 
   const trimmed = prompt.trim();
-  const images: { url: string; id: string }[] = [];
+  const baseId = Date.now();
 
-  for (let i = 0; i < SEEDS.length; i++) {
-    const url = await fetchOne(trimmed, SEEDS[i]);
-    if (url) images.push({ url, id: `ai-${Date.now()}-${i}` });
+  const results = await Promise.all(
+    SEEDS.map((seed, i) =>
+      (async () => {
+        await new Promise((r) => setTimeout(r, i * STAGGER_MS));
+        const url = await fetchOne(trimmed, seed, MODELS[i]);
+        return {
+          id: `ai-${baseId}-${i}`,
+          url,
+          error: url ? undefined : "Could not generate this option",
+        };
+      })()
+    )
+  );
+
+  const okCount = results.filter((r) => r.url).length;
+  if (okCount === 0) {
+    return NextResponse.json(
+      { success: false, error: "Could not generate images. Try again.", images: results },
+      { status: 502 }
+    );
   }
 
-  if (images.length === 0) {
-    return NextResponse.json({ success: false, error: "Could not generate images. Try again." }, { status: 502 });
-  }
-
-  return NextResponse.json({ success: true, images });
+  return NextResponse.json({ success: true, images: results });
 }

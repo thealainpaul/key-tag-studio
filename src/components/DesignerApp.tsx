@@ -3,9 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
+import { coverFitInCanvas } from "@/lib/design";
 import { CANVAS_H, CANVAS_W, drawKeyTagBorder, drawKeyTagFill, getTagMetrics } from "@/lib/keytag-shape";
 
 const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
+const AI_SLOT_COUNT = 3;
+
+type AiSlot = { id: string; url: string | null; error?: string; status: "loading" | "ok" | "error" };
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -94,7 +98,7 @@ export default function DesignerApp() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
-  const [aiResults, setAiResults] = useState<{ url: string; id: string }[]>([]);
+  const [aiResults, setAiResults] = useState<AiSlot[]>([]);
   const [message, setMessage] = useState("");
   const dragRef = useRef<{ type: "text" | "image"; id: string; ox: number; oy: number } | null>(null);
   const tagColorRef = useRef(tagColor);
@@ -215,18 +219,29 @@ export default function DesignerApp() {
     };
   }, [redrawContent]);
 
-  async function onUpload(file: File) {
-    const url = URL.createObjectURL(file);
-    await preloadImage(url, imageCache.current);
-    const img: DesignImage = { id: uid(), url, x: 0, y: 0, width: CANVAS_W, height: CANVAS_H, rotation: 0 };
+  async function addFittedImage(url: string) {
+    const image = await preloadImage(url, imageCache.current);
+    const fit = coverFitInCanvas(image.naturalWidth, image.naturalHeight);
+    const img: DesignImage = { id: uid(), url, ...fit, rotation: 0 };
     setImages((prev) => [...prev, img]);
     setSelectedBgId(img.id);
+  }
+
+  async function onUpload(file: File) {
+    const url = URL.createObjectURL(file);
+    await addFittedImage(url);
   }
 
   async function generateAi() {
     setAiLoading(true);
     setAiError("");
-    setAiResults([]);
+    setAiResults(
+      Array.from({ length: AI_SLOT_COUNT }, (_, i) => ({
+        id: `loading-${i}`,
+        url: null,
+        status: "loading" as const,
+      }))
+    );
     try {
       const res = await fetch("/api/designer/generate-background", {
         method: "POST",
@@ -234,20 +249,33 @@ export default function DesignerApp() {
         body: JSON.stringify({ prompt: aiPrompt }),
       });
       const data = await res.json();
+      const slots: AiSlot[] = (data.images ?? []).map(
+        (img: { id: string; url: string | null; error?: string }) => ({
+          id: img.id,
+          url: img.url,
+          error: img.error,
+          status: img.url ? ("ok" as const) : ("error" as const),
+        })
+      );
+      while (slots.length < AI_SLOT_COUNT) {
+        slots.push({ id: `empty-${slots.length}`, url: null, status: "error", error: "Missing result" });
+      }
+      setAiResults(slots.slice(0, AI_SLOT_COUNT));
       if (!data.success) throw new Error(data.error || "Failed to generate images");
-      setAiResults(data.images);
     } catch (err) {
       setAiError(err instanceof Error ? err.message : "Failed to generate images");
+      setAiResults((prev) =>
+        prev.map((slot) =>
+          slot.status === "loading" ? { ...slot, status: "error" as const, error: "Failed" } : slot
+        )
+      );
     } finally {
       setAiLoading(false);
     }
   }
 
   async function pickAiImage(url: string) {
-    await preloadImage(url, imageCache.current);
-    const img: DesignImage = { id: uid(), url, x: 0, y: 0, width: CANVAS_W, height: CANVAS_H, rotation: 0 };
-    setImages((prev) => [...prev, img]);
-    setSelectedBgId(img.id);
+    await addFittedImage(url);
     setAiOpen(false);
     setAiResults([]);
   }
@@ -343,7 +371,7 @@ export default function DesignerApp() {
             aria-label="Tag color"
           />
           <label className="btn secondary compact" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
-            Upload
+            Upload (we fit it for you)
             <input hidden type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
           </label>
           <button className="btn secondary compact" onClick={() => setAiOpen(true)}>AI</button>
@@ -385,20 +413,35 @@ export default function DesignerApp() {
       {aiOpen && (
         <div className="modal-backdrop" onClick={() => setAiOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0 }}>AI background</h3>
             <div className="field">
-              <textarea rows={2} value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="Describe your design..." />
+              <textarea rows={2} value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="Describe your image…" />
             </div>
             {aiError && <p style={{ color: "var(--danger)" }}>{aiError}</p>}
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              <button className="btn" onClick={generateAi} disabled={aiLoading}>{aiLoading ? "Generating…" : "Generate 3"}</button>
-              <button className="btn secondary" onClick={() => setAiOpen(false)}>Cancel</button>
+              <button className="btn" onClick={generateAi} disabled={aiLoading || !aiPrompt.trim()}>
+                {aiLoading ? "Generating…" : "Generate 3"}
+              </button>
+              <button className="btn secondary" onClick={() => setAiOpen(false)}>Close</button>
             </div>
-            {aiLoading && <p className="muted" style={{ marginTop: "0.75rem" }}>Creating 3 options — may take up to a minute.</p>}
-            {aiResults.length > 0 && (
+            {(aiLoading || aiResults.length > 0) && (
               <div className="ai-grid">
-                {aiResults.map((img) => (
-                  <img key={img.id} src={img.url} alt="AI option" onClick={() => pickAiImage(img.url)} />
+                {(aiResults.length > 0
+                  ? aiResults
+                  : Array.from({ length: AI_SLOT_COUNT }, (_, i) => ({
+                      id: `placeholder-${i}`,
+                      url: null,
+                      status: "loading" as const,
+                    }))
+                ).map((slot) => (
+                  <div key={slot.id} className={`ai-slot ai-slot-${slot.status}`}>
+                    {slot.status === "ok" && slot.url ? (
+                      <img src={slot.url} alt="" onClick={() => pickAiImage(slot.url!)} />
+                    ) : slot.status === "error" ? (
+                      <span className="ai-slot-msg">{slot.error || "Failed"}</span>
+                    ) : (
+                      <span className="ai-slot-msg">Generating…</span>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
