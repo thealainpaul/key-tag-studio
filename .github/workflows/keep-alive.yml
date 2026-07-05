@@ -2,9 +2,7 @@ name: Keep site awake
 
 on:
   schedule:
-    # Primary: every 5 minutes (Render sleeps after ~15 min idle)
     - cron: "*/5 * * * *"
-    # Backup: offset pings in case a run is delayed
     - cron: "2,12,22,32,42,52 * * * *"
   workflow_dispatch:
   push:
@@ -20,21 +18,23 @@ concurrency:
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Wake Render (health check, with retries)
+      - name: Wake Render
         run: |
-          URL="https://key-tag-studio-1.onrender.com/api/health"
-          for attempt in 1 2 3 4 5 6; do
-            if curl -fsS --max-time 120 "$URL"; then
-              echo "Health OK (attempt $attempt)"
+          URL="https://key-tag-studio-1.onrender.com/"
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 "$URL" || echo "000")
+            if [ "$code" = "200" ] || [ "$code" = "304" ]; then
+              echo "Site awake (HTTP $code, attempt $attempt)"
               exit 0
             fi
-            echo "Attempt $attempt failed — Render may be waking up..."
-            sleep 20
+            echo "Attempt $attempt got HTTP $code — Render may be waking up..."
+            sleep 30
           done
-          echo "Health check failed after all attempts"
+          echo "Could not reach site after all attempts"
           exit 1
 
-      - name: Ping homepage (light second request)
-        run: curl -fsS --max-time 60 -o /dev/null "https://key-tag-studio-1.onrender.com/"
+      - name: Ping health endpoint (optional)
+        continue-on-error: true
+        run: curl -fsS --max-time 30 "https://key-tag-studio-1.onrender.com/api/health"
