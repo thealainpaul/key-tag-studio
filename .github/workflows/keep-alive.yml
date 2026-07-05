@@ -2,13 +2,39 @@ name: Keep site awake
 
 on:
   schedule:
-    # Every 5 minutes — keeps Render free tier from sleeping (~15 min idle timeout)
+    # Primary: every 5 minutes (Render sleeps after ~15 min idle)
     - cron: "*/5 * * * *"
+    # Backup: offset pings in case a run is delayed
+    - cron: "2,12,22,32,42,52 * * * *"
   workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: false
 
 jobs:
   ping:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Ping health endpoint
-        run: curl -fsS --max-time 30 "https://key-tag-studio-1.onrender.com/api/health"
+      - name: Wake Render (health check, with retries)
+        run: |
+          URL="https://key-tag-studio-1.onrender.com/api/health"
+          for attempt in 1 2 3 4 5 6; do
+            if curl -fsS --max-time 120 "$URL"; then
+              echo "Health OK (attempt $attempt)"
+              exit 0
+            fi
+            echo "Attempt $attempt failed — Render may be waking up..."
+            sleep 20
+          done
+          echo "Health check failed after all attempts"
+          exit 1
+
+      - name: Ping homepage (light second request)
+        run: curl -fsS --max-time 60 -o /dev/null "https://key-tag-studio-1.onrender.com/"
