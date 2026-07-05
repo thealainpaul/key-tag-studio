@@ -3,28 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
-import {
-  CANVAS_H,
-  CANVAS_W,
-  drawKeyTagBorder,
-  drawKeyTagFill,
-  getTagMetrics,
-  KEYTAG_SPECS,
-  SAFE_H,
-  SAFE_W,
-} from "@/lib/keytag-shape";
+import { CANVAS_H, CANVAS_W, drawKeyTagBorder, drawKeyTagFill, getTagMetrics } from "@/lib/keytag-shape";
 
 const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
-}
-
-function defaultLines(): TextLine[] {
-  return [
-    { id: uid(), text: "RETURN TO POSTBOX", fontFamily: "Arial", fontSize: 32, color: "#ffffff", x: CANVAS_W * 0.5, y: CANVAS_H * 0.45, linkedImageId: null },
-    { id: uid(), text: "DROP IN MAILBOX", fontFamily: "Arial", fontSize: 32, color: "#ffffff", x: CANVAS_W * 0.5, y: CANVAS_H * 0.52, linkedImageId: null },
-  ];
 }
 
 function preloadImage(url: string, cache: Map<string, HTMLImageElement>) {
@@ -77,6 +61,7 @@ function drawContentLayer(
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   textLines.forEach((line) => {
+    if (!line.text.trim()) return;
     ctx.font = `${line.fontSize}px "${line.fontFamily}"`;
     ctx.fillStyle = line.color;
     ctx.fillText(line.text, line.x, line.y);
@@ -86,12 +71,9 @@ function drawContentLayer(
 function drawBorderLayer(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-
   canvas.width = CANVAS_W;
   canvas.height = CANVAS_H;
-
-  const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
-  drawKeyTagBorder(ctx, metrics);
+  drawKeyTagBorder(ctx, getTagMetrics(CANVAS_W, CANVAS_H));
 }
 
 export default function DesignerApp() {
@@ -99,13 +81,15 @@ export default function DesignerApp() {
   const borderCanvasRef = useRef<HTMLCanvasElement>(null);
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
   const imagesRef = useRef<DesignImage[]>([]);
-  const textLinesRef = useRef<TextLine[]>(defaultLines());
+  const textLinesRef = useRef<TextLine[]>([]);
+  const selectedBgIdRef = useRef<string | null>(null);
 
   const [tagColor, setTagColor] = useState("#1f1f1f");
   const [images, setImages] = useState<DesignImage[]>([]);
-  const [textLines, setTextLines] = useState<TextLine[]>(defaultLines);
+  const [textLines, setTextLines] = useState<TextLine[]>([]);
   const [selectedBgId, setSelectedBgId] = useState<string | null>(null);
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
+  const [showText, setShowText] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -113,9 +97,12 @@ export default function DesignerApp() {
   const [aiResults, setAiResults] = useState<{ url: string; id: string }[]>([]);
   const [message, setMessage] = useState("");
   const dragRef = useRef<{ type: "text" | "image"; id: string; ox: number; oy: number } | null>(null);
+  const tagColorRef = useRef(tagColor);
 
   imagesRef.current = images;
   textLinesRef.current = textLines;
+  selectedBgIdRef.current = selectedBgId;
+  tagColorRef.current = tagColor;
 
   const redrawContent = useCallback(
     (nextImages = imagesRef.current, nextTextLines = textLinesRef.current, nextTagColor = tagColor) => {
@@ -127,19 +114,23 @@ export default function DesignerApp() {
   );
 
   useEffect(() => {
-    const canvas = borderCanvasRef.current;
-    if (canvas) drawBorderLayer(canvas);
+    requestAnimationFrame(() => {
+      const canvas = borderCanvasRef.current;
+      if (canvas) drawBorderLayer(canvas);
+    });
   }, []);
 
   useEffect(() => {
     redrawContent();
   }, [tagColor, images, textLines, redrawContent]);
 
-  function canvasPoint(e: React.MouseEvent<HTMLCanvasElement>) {
-    const rect = e.currentTarget.getBoundingClientRect();
+  function canvasPoint(clientX: number, clientY: number) {
+    const canvas = contentCanvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
     return {
-      x: ((e.clientX - rect.left) / rect.width) * CANVAS_W,
-      y: ((e.clientY - rect.top) / rect.height) * CANVAS_H,
+      x: ((clientX - rect.left) / rect.width) * CANVAS_W,
+      y: ((clientY - rect.top) / rect.height) * CANVAS_H,
     };
   }
 
@@ -147,17 +138,17 @@ export default function DesignerApp() {
     ctx.font = `${line.fontSize}px "${line.fontFamily}"`;
     const w = ctx.measureText(line.text).width;
     const h = line.fontSize * 1.3;
-    return x >= line.x - w / 2 - 12 && x <= line.x + w / 2 + 12 && y >= line.y - h / 2 - 12 && y <= line.y + h / 2 + 12;
+    return x >= line.x - w / 2 - 16 && x <= line.x + w / 2 + 16 && y >= line.y - h / 2 - 16 && y <= line.y + h / 2 + 16;
   }
 
-  function onCanvasMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
+  function beginDrag(clientX: number, clientY: number) {
     const canvas = contentCanvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!ctx) return;
 
-    const bgImage = imagesRef.current.find((i) => i.id === selectedBgId) || imagesRef.current[0];
-    const { x, y } = canvasPoint(e);
-    const hit = [...textLinesRef.current].reverse().find((line) => hitText(ctx, line, x, y));
+    const bgImage = imagesRef.current.find((i) => i.id === selectedBgIdRef.current) || imagesRef.current[0];
+    const { x, y } = canvasPoint(clientX, clientY);
+    const hit = [...textLinesRef.current].reverse().find((line) => line.text.trim() && hitText(ctx, line, x, y));
 
     if (hit) {
       setSelectedTextId(hit.id);
@@ -170,34 +161,59 @@ export default function DesignerApp() {
     }
   }
 
-  function onCanvasMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
+  function moveDrag(clientX: number, clientY: number) {
     if (!dragRef.current) return;
-    const { x, y } = canvasPoint(e);
+    const { x, y } = canvasPoint(clientX, clientY);
 
     if (dragRef.current.type === "text") {
       const next = textLinesRef.current.map((line) =>
         line.id === dragRef.current!.id ? { ...line, x: x - dragRef.current!.ox, y: y - dragRef.current!.oy } : line
       );
       textLinesRef.current = next;
-      redrawContent(imagesRef.current, next);
+      redrawContent(imagesRef.current, next, tagColorRef.current);
     } else {
       const next = imagesRef.current.map((img) =>
         img.id === dragRef.current!.id ? { ...img, x: x - dragRef.current!.ox, y: y - dragRef.current!.oy } : img
       );
       imagesRef.current = next;
-      redrawContent(next, textLinesRef.current);
+      redrawContent(next, textLinesRef.current, tagColorRef.current);
     }
   }
 
-  function onCanvasMouseUp() {
+  function endDrag() {
     if (!dragRef.current) return;
-    if (dragRef.current.type === "text") {
-      setTextLines([...textLinesRef.current]);
-    } else {
-      setImages([...imagesRef.current]);
-    }
+    if (dragRef.current.type === "text") setTextLines([...textLinesRef.current]);
+    else setImages([...imagesRef.current]);
     dragRef.current = null;
   }
+
+  useEffect(() => {
+    const canvas = contentCanvasRef.current;
+    if (!canvas) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      beginDrag(e.touches[0].clientX, e.touches[0].clientY);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!dragRef.current || e.touches.length !== 1) return;
+      e.preventDefault();
+      moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+    };
+    const onTouchEnd = () => endDrag();
+
+    canvas.addEventListener("touchstart", onTouchStart, { passive: true });
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+    canvas.addEventListener("touchend", onTouchEnd);
+    canvas.addEventListener("touchcancel", onTouchEnd);
+
+    return () => {
+      canvas.removeEventListener("touchstart", onTouchStart);
+      canvas.removeEventListener("touchmove", onTouchMove);
+      canvas.removeEventListener("touchend", onTouchEnd);
+      canvas.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [redrawContent]);
 
   async function onUpload(file: File) {
     const url = URL.createObjectURL(file);
@@ -210,6 +226,7 @@ export default function DesignerApp() {
   async function generateAi() {
     setAiLoading(true);
     setAiError("");
+    setAiResults([]);
     try {
       const res = await fetch("/api/designer/generate-background", {
         method: "POST",
@@ -235,18 +252,21 @@ export default function DesignerApp() {
     setAiResults([]);
   }
 
-  async function suggestLayout() {
-    const res = await fetch("/api/designer/ai-suggestions", { method: "POST" });
-    const data = await res.json();
-    if (!data.success || !data.suggestions?.[0]) return;
-    const s = data.suggestions[0];
-    setTextLines((lines) =>
-      lines.map((line, i) => {
-        const pos = s.textLines[i];
-        if (!pos) return line;
-        return { ...line, text: pos.text, x: CANVAS_W * 0.5, y: pos.y * CANVAS_H };
-      })
-    );
+  function addTextLine() {
+    setShowText(true);
+    setTextLines((lines) => [
+      ...lines,
+      {
+        id: uid(),
+        text: "",
+        fontFamily: "Arial",
+        fontSize: 32,
+        color: "#ffffff",
+        x: CANVAS_W * 0.5,
+        y: CANVAS_H * 0.5,
+        linkedImageId: null,
+      },
+    ]);
   }
 
   async function submitDesign() {
@@ -273,7 +293,7 @@ export default function DesignerApp() {
       body: JSON.stringify({ tagColor, designJson: payload, previewDataUrl }),
     });
     const data = await res.json();
-    setMessage(data.success ? "Submitted for review!" : data.error || "Submit failed");
+    setMessage(data.success ? "Submitted!" : data.error || "Submit failed");
   }
 
   function updateLine(id: string, patch: Partial<TextLine>) {
@@ -281,113 +301,99 @@ export default function DesignerApp() {
   }
 
   return (
-    <div className="container">
-      <div className="nav">
+    <div className="designer-page">
+      <div className="designer-nav">
         <Link href="/"><strong>Key Tag Studio</strong></Link>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <Link href="/admin/login" className="btn secondary">Admin</Link>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <Link href="/admin/login" className="muted" style={{ fontSize: "0.8rem" }}>Admin</Link>
+          <button className="btn compact" onClick={submitDesign}>Submit</button>
         </div>
       </div>
 
-      <div className="grid-2">
-        <div className="card">
-          <h3>Layout setup</h3>
-          <p className="muted">Upload art, add text and choose a layout.</p>
-
-          <div className="field">
-            <label>Tag Color</label>
-            <input type="color" value={tagColor} onChange={(e) => setTagColor(e.target.value)} />
+      <div className="preview-panel">
+        <div className="preview-wrap">
+          <div className="preview-stack">
+            <canvas
+              ref={contentCanvasRef}
+              width={CANVAS_W}
+              height={CANVAS_H}
+              className="preview-content"
+              onMouseDown={(e) => beginDrag(e.clientX, e.clientY)}
+              onMouseMove={(e) => e.buttons === 1 && moveDrag(e.clientX, e.clientY)}
+              onMouseUp={endDrag}
+              onMouseLeave={endDrag}
+            />
+            <canvas ref={borderCanvasRef} width={CANVAS_W} height={CANVAS_H} className="preview-border" aria-hidden="true" />
           </div>
+        </div>
+      </div>
 
-          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-            <label className="btn secondary" style={{ cursor: "pointer" }}>
-              📁 Upload
-              <input hidden type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
-            </label>
-            <button className="btn secondary" onClick={() => setAiOpen(true)}>🎨 AI</button>
-            <button className="btn secondary" onClick={suggestLayout}>⚡ Suggest</button>
-          </div>
+      <div className="controls">
+        <div className="toolbar">
+          <input
+            type="color"
+            className="color-input"
+            value={tagColor}
+            onChange={(e) => setTagColor(e.target.value)}
+            aria-label="Tag color"
+          />
+          <label className="btn secondary compact" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
+            Upload
+            <input hidden type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
+          </label>
+          <button className="btn secondary compact" onClick={() => setAiOpen(true)}>AI</button>
+          <button className="btn secondary compact" onClick={addTextLine}>+ Text</button>
+        </div>
 
-          {images.length === 0 && <p className="muted" style={{ marginBottom: "1rem" }}>No images added yet. Click empty space on the preview to drag a background image.</p>}
-
-          <div style={{ marginBottom: "1rem" }}>
-            <button className="btn secondary" onClick={() => setTextLines((l) => [...l, { id: uid(), text: "NEW LINE", fontFamily: "Arial", fontSize: 28, color: "#ffffff", x: CANVAS_W * 0.5, y: CANVAS_H * 0.5, linkedImageId: null }])}>+ Add line</button>
-          </div>
-
-          {textLines.map((line, index) => (
-            <div key={line.id} className="card" style={{ marginBottom: "0.75rem", borderColor: selectedTextId === line.id ? "var(--primary)" : undefined }}>
-              <p className="muted" style={{ marginTop: 0 }}>Text #{index + 1}</p>
-              <div className="field"><label>Text</label><input value={line.text} onChange={(e) => updateLine(line.id, { text: e.target.value })} /></div>
-              <div className="field"><label>Font</label>
+        {showText && textLines.map((line) => (
+          <div key={line.id} className={`text-block${selectedTextId === line.id ? " selected" : ""}`}>
+            <div className="field">
+              <input
+                value={line.text}
+                placeholder="Your text"
+                onChange={(e) => updateLine(line.id, { text: e.target.value })}
+                onFocus={() => setSelectedTextId(line.id)}
+              />
+            </div>
+            <div className="text-row">
+              <div className="field">
                 <select value={line.fontFamily} onChange={(e) => updateLine(line.id, { fontFamily: e.target.value })}>
                   {FONTS.map((f) => <option key={f}>{f}</option>)}
                 </select>
               </div>
-              <div className="field"><label>Size</label><input type="number" value={line.fontSize} onChange={(e) => updateLine(line.id, { fontSize: Number(e.target.value) })} /></div>
-              <div className="field"><label>Color</label><input type="color" value={line.color} onChange={(e) => updateLine(line.id, { color: e.target.value })} /></div>
-              <button className="btn danger" onClick={() => setTextLines((lines) => lines.filter((l) => l.id !== line.id))}>Remove</button>
-            </div>
-          ))}
-
-          <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-            <button className="btn secondary" onClick={() => { setTextLines(defaultLines()); setImages([]); setTagColor("#1f1f1f"); }}>Reset</button>
-            <button className="btn" onClick={submitDesign}>Submit for review</button>
-          </div>
-          {message && <p className="muted" style={{ marginTop: "0.75rem" }}>{message}</p>}
-        </div>
-
-        <div className="card preview-panel">
-          <h3>Live preview</h3>
-          <p className="muted">Anything inside the red shape will be engraved on the key tag.</p>
-          <div className="preview-wrap">
-            <div className="preview-stack">
-              <canvas
-                ref={contentCanvasRef}
-                width={CANVAS_W}
-                height={CANVAS_H}
-                className="preview-content"
-                onMouseDown={onCanvasMouseDown}
-                onMouseMove={onCanvasMouseMove}
-                onMouseUp={onCanvasMouseUp}
-                onMouseLeave={onCanvasMouseUp}
-              />
-              <canvas
-                ref={borderCanvasRef}
-                width={CANVAS_W}
-                height={CANVAS_H}
-                className="preview-border"
-                aria-hidden="true"
-              />
+              <div className="field">
+                <input type="number" value={line.fontSize} onChange={(e) => updateLine(line.id, { fontSize: Number(e.target.value) })} aria-label="Font size" />
+              </div>
+              <div className="field">
+                <input type="color" value={line.color} onChange={(e) => updateLine(line.id, { color: e.target.value })} aria-label="Text color" />
+              </div>
+              <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
+                <button className="btn danger compact" style={{ width: "100%" }} onClick={() => setTextLines((lines) => lines.filter((l) => l.id !== line.id))}>Remove</button>
+              </div>
             </div>
           </div>
-          <p className="muted">{CANVAS_W} × {CANVAS_H} px — Saved as JSON + image</p>
-          <p className="muted">
-            Design area: {KEYTAG_SPECS.designAreaMm.width} × {KEYTAG_SPECS.designAreaMm.height} mm ({CANVAS_W} × {CANVAS_H} px @ {KEYTAG_SPECS.dpi}dpi / {KEYTAG_SPECS.scale * 100}%)
-          </p>
-          <p className="muted">
-            Safe engraving area: {KEYTAG_SPECS.safeAreaMm.width} × {KEYTAG_SPECS.safeAreaMm.height} mm ({SAFE_W} × {SAFE_H} px)
-          </p>
-          <p className="muted">Tip: Click text to drag it. Click empty space to drag the background image.</p>
-        </div>
+        ))}
+
+        {message && <p className="message">{message}</p>}
       </div>
 
       {aiOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "grid", placeItems: "center", zIndex: 50 }} onClick={() => setAiOpen(false)}>
-          <div className="card" style={{ width: "min(640px, 92vw)" }} onClick={(e) => e.stopPropagation()}>
-            <h3>🎨 Generate Background with AI</h3>
+        <div className="modal-backdrop" onClick={() => setAiOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>AI background</h3>
             <div className="field">
-              <label>Describe your background</label>
-              <textarea rows={3} value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="e.g. vibrant sunset over mountains" />
+              <textarea rows={2} value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="Describe your design..." />
             </div>
-            {aiError && <p style={{ color: "var(--danger)" }}>Error: {aiError}</p>}
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <button className="btn" onClick={generateAi} disabled={aiLoading}>{aiLoading ? "Generating..." : "✨ Generate 3 Images"}</button>
+            {aiError && <p style={{ color: "var(--danger)" }}>{aiError}</p>}
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <button className="btn" onClick={generateAi} disabled={aiLoading}>{aiLoading ? "Generating…" : "Generate 3"}</button>
               <button className="btn secondary" onClick={() => setAiOpen(false)}>Cancel</button>
             </div>
+            {aiLoading && <p className="muted" style={{ marginTop: "0.75rem" }}>Creating 3 options — may take up to a minute.</p>}
             {aiResults.length > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.5rem", marginTop: "1rem" }}>
+              <div className="ai-grid">
                 {aiResults.map((img) => (
-                  <img key={img.id} src={img.url} alt="AI option" style={{ width: "100%", borderRadius: 8, cursor: "pointer", border: "2px solid var(--border)" }} onClick={() => pickAiImage(img.url)} />
+                  <img key={img.id} src={img.url} alt="AI option" onClick={() => pickAiImage(img.url)} />
                 ))}
               </div>
             )}
