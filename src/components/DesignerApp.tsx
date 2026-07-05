@@ -332,6 +332,8 @@ export default function DesignerApp() {
           <p>The red frame and all outside of that is not where the image would appear.</p>
         </div>
       </div>
+
+      <div className="controls">
         <div className="toolbar">
           <input
             type="color"
