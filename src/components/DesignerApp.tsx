@@ -354,10 +354,10 @@ export default function DesignerApp() {
             <canvas ref={borderCanvasRef} width={CANVAS_W} height={CANVAS_H} className="preview-border" aria-hidden="true" />
           </div>
         </div>
-        <div className="instructions">
-          <p>Upload or create your own image with AI.</p>
-          <p>The black space is where the image will appear.</p>
-          <p>The red frame and all outside of that is not where the image would appear.</p>
+        <div className="preview-hints">
+          <p>Upload or create your own image with AI</p>
+          <p>The black space is where the image will appear</p>
+          <p>The red frame and all outside of that is not where the image would appear</p>
         </div>
       </div>
 

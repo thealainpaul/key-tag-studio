@@ -72,14 +72,18 @@ button, input, select, textarea { font: inherit; }
   pointer-events: none;
 }
 
-.instructions {
-  margin-top: 0.75rem;
+.preview-hints {
+  margin-top: 0.5rem;
+  text-align: center;
   padding: 0 0.25rem;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  color: #1f2937;
 }
-.instructions p { margin: 0.4rem 0; }
+
+.preview-hints p {
+  margin: 0.25rem 0;
+  font-size: 0.85rem;
+  color: #374151;
+  line-height: 1.35;
+}
 
 .controls {
   background: var(--surface);
@@ -189,12 +193,35 @@ label { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(-
 
 .ai-grid img {
   width: 100%;
+  height: 100%;
   border-radius: 8px;
   cursor: pointer;
   border: 2px solid var(--border);
-  min-height: 80px;
   object-fit: cover;
 }
+
+.ai-slot {
+  display: grid;
+  place-items: center;
+  min-height: 80px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: #11151c;
+  aspect-ratio: 1086 / 470;
+}
+
+.ai-slot-loading { border-color: var(--primary); }
+.ai-slot-error { border-color: var(--danger); }
+.ai-slot-ok { padding: 0; overflow: hidden; }
+
+.ai-slot-msg {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 0.5rem;
+}
+
+.ai-slot-error .ai-slot-msg { color: var(--danger); }
 
 .status-pending { color: #f59e0b; }
 .status-approved { color: #22c55e; }
