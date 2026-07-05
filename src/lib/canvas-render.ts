@@ -50,13 +50,11 @@ export function drawContentLayer(
     metrics.drawGeometry(ctx, 0);
     ctx.clip();
 
-    const nw = image.naturalWidth;
-    const nh = image.naturalHeight;
     const centerX = item.x + item.width / 2;
     const centerY = item.y + item.height / 2;
     ctx.translate(centerX, centerY);
     ctx.rotate((item.rotation * Math.PI) / 180);
-    ctx.drawImage(image, -nw / 2, -nh / 2, nw, nh);
+    ctx.drawImage(image, -item.width / 2, -item.height / 2, item.width, item.height);
     ctx.restore();
   }
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
-import { naturalCenterPlacement } from "@/lib/design";
+import { fitWidthInFrame, naturalCenterPlacement } from "@/lib/design";
 import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
 import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
 import {
@@ -20,7 +20,7 @@ const AI_SLOT_COUNT = 3;
 
 type AiSlot = AiSlotResult;
 
-const AI_STAGGER_MS = 15000;
+const AI_STAGGER_MS = 8000;
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -170,6 +170,14 @@ export default function DesignerApp() {
     };
   }, [redrawContent]);
 
+  async function addAiImage(url: string) {
+    const image = await preloadImage(url, imageCache.current);
+    const placement = fitWidthInFrame(image.naturalWidth, image.naturalHeight);
+    const img: DesignImage = { id: uid(), url, ...placement, rotation: 0 };
+    setImages((prev) => [...prev, img]);
+    setSelectedBgId(img.id);
+  }
+
   async function addImageAtNaturalSize(url: string) {
     const image = await preloadImage(url, imageCache.current);
     const placement = naturalCenterPlacement(image.naturalWidth, image.naturalHeight);
@@ -186,12 +194,9 @@ export default function DesignerApp() {
 
   useEffect(() => {
     if (!aiLoading || aiResults.length < AI_SLOT_COUNT) return;
-    if (!aiResults.every((s) => s.status !== "loading")) return;
-    setAiLoading(false);
     const ok = aiResults.filter((s) => s.status === "ok").length;
-    if (ok < AI_SLOT_COUNT) {
-      setAiError(`Only ${ok} of 3 images were generated. Please try again.`);
-    } else {
+    if (ok === AI_SLOT_COUNT) {
+      setAiLoading(false);
       setAiError("");
     }
   }, [aiResults, aiLoading]);
@@ -213,7 +218,7 @@ export default function DesignerApp() {
   }
 
   async function pickAiImage(url: string) {
-    await addImageAtNaturalSize(url);
+    await addAiImage(url);
     setFitMode("manual");
     setAiOpen(false);
     setAiResults([]);

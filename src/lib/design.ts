@@ -29,9 +29,9 @@ export type DesignPayload = {
 
 import { CANVAS_H, CANVAS_W } from "./keytag-shape";
 
-/** Wide banner — similar proportions to the key tag, not exact. */
-export const AI_GEN_W = 800;
-export const AI_GEN_H = 320;
+/** Wide banner — similar proportions to the key tag. */
+export const AI_GEN_W = 1280;
+export const AI_GEN_H = Math.round(AI_GEN_W / (46.0 / 19.9));
 
 /** Short Pollinations URL. Long URLs were causing failed requests. */
 export function makePollinationsUrl(userPrompt: string, seed: number, simple = false): string {
@@ -62,5 +62,18 @@ export function naturalCenterPlacement(naturalW: number, naturalH: number) {
     y: (CANVAS_H - naturalH) / 2,
     width: naturalW,
     height: naturalH,
+  };
+}
+
+/** Scale uniformly to fill the frame width — no stretching. Used for AI picks. */
+export function fitWidthInFrame(naturalW: number, naturalH: number) {
+  const scale = CANVAS_W / naturalW;
+  const width = CANVAS_W;
+  const height = naturalH * scale;
+  return {
+    x: 0,
+    y: (CANVAS_H - height) / 2,
+    width,
+    height,
   };
 }
