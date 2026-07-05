@@ -2,8 +2,10 @@ name: Keep site awake
 
 on:
   schedule:
+    # Three offset schedules ≈ ping every 2 minutes (Render sleeps after ~15 min idle)
     - cron: "*/5 * * * *"
     - cron: "2,12,22,32,42,52 * * * *"
+    - cron: "4,14,24,34,44,54 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
@@ -32,9 +34,4 @@ jobs:
             echo "Attempt $attempt got HTTP $code — Render may be waking up..."
             sleep 30
           done
-          echo "Could not reach site after all attempts"
           exit 1
-
-      - name: Ping health endpoint (optional)
-        continue-on-error: true
-        run: curl -fsS --max-time 30 "https://key-tag-studio-1.onrender.com/api/health"
