@@ -11,10 +11,10 @@ export const MOCKUP_PHOTO = {
  * Pic-only (left of QR) is ~52% of width and aspect ≈ 1.29 — too narrow for the red frame.
  */
 export const MOCKUP_ART_PIXELS = {
-  x: 344,
-  y: 84,
-  w: 456,
-  h: 180,
+  x: 336,
+  y: 82,
+  w: 468,
+  h: 186,
 };
 
 /** Pic-only sub-region (sample face), for reference / future QR split UI. */
