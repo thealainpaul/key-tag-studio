@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import { CANVAS_H, CANVAS_W, getTagMetrics } from "@/lib/keytag-shape";
-import { MOCKUP_ART_PIXELS, MOCKUP_PHOTO } from "@/lib/mockup-layout";
+import { MOCKUP_ART_PIXELS, MOCKUP_LEFT_SKEW, MOCKUP_PHOTO } from "@/lib/mockup-layout";
 
 type Props = {
   contentCanvasRef: RefObject<HTMLCanvasElement | null>;
@@ -50,6 +50,7 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(w / CANVAS_W, h / CANVAS_H);
+    if (MOCKUP_LEFT_SKEW) ctx.transform(1, 0, MOCKUP_LEFT_SKEW, 1, 0, 0);
 
     const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
     metrics.drawGeometry(ctx);
