@@ -6,12 +6,21 @@ export const MOCKUP_PHOTO = {
 };
 
 /**
- * Recessed print area on the photo, in pixels (left of QR).
- * Verified with public/mockup-calibration.png red-box overlay.
+ * Full recessed print area on the photo (image + QR), in pixels.
+ * Measured on keytag-mockup-top.png — aspect ≈ 2.47 vs design canvas ≈ 2.31.
+ * Pic-only (left of QR) is ~52% of width and aspect ≈ 1.29 — too narrow for the red frame.
  */
 export const MOCKUP_ART_PIXELS = {
-  x: 343,
-  y: 105,
-  w: 636 - 343,
-  h: 255 - 105,
+  x: 344,
+  y: 84,
+  w: 456,
+  h: 180,
+};
+
+/** Pic-only sub-region (sample face), for reference / future QR split UI. */
+export const MOCKUP_PIC_ONLY_PIXELS = {
+  x: 344,
+  y: 84,
+  w: 239,
+  h: 180,
 };
