@@ -3,7 +3,7 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
 import { MOCKUP_ART_QUAD, MOCKUP_PHOTO } from "@/lib/mockup-layout";
-import { drawImageInQuad } from "@/lib/mockup-quad";
+import { drawDesignOnPhotoQuad, getDesignQuad } from "@/lib/mockup-quad";
 
 type Props = {
   contentCanvasRef: RefObject<HTMLCanvasElement | null>;
@@ -45,7 +45,14 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
 
     ctx.clearRect(0, 0, pw, ph);
     ctx.drawImage(photo, 0, 0, pw, ph);
-    drawImageInQuad(ctx, content, CANVAS_W, CANVAS_H, MOCKUP_ART_QUAD);
+    drawDesignOnPhotoQuad(
+      ctx,
+      content,
+      CANVAS_W,
+      CANVAS_H,
+      getDesignQuad(),
+      MOCKUP_ART_QUAD
+    );
   }
 
   useEffect(() => {

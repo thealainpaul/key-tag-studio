@@ -8,12 +8,12 @@ export const MOCKUP_PHOTO = {
 };
 
 /**
- * Full recessed print area on the photo (pic + QR), as a quad in photo pixels.
- * Calibrated on keytag-mockup-top.png — left edge slopes slightly right toward the bottom.
+ * Photo recess quad (pic + QR), measured on keytag-mockup-top.png.
+ * Green calibration overlay — left edge slopes right toward the bottom.
  */
 export const MOCKUP_ART_QUAD: Quad = {
-  tl: { x: 333, y: 78 },
-  tr: { x: 810, y: 78 },
-  br: { x: 812, y: 264 },
-  bl: { x: 347, y: 265 },
+  tl: { x: 330, y: 76 },
+  tr: { x: 813, y: 76 },
+  br: { x: 815, y: 266 },
+  bl: { x: 349, y: 267 },
 };

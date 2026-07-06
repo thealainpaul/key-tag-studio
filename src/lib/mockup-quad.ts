@@ -1,24 +1,18 @@
-export type Point = { x: number; y: number };
+import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
+import type { Point, Quad } from "@/lib/mockup-quad";
 
-export type Quad = {
-  tl: Point;
-  tr: Point;
-  br: Point;
-  bl: Point;
-};
-
-/** Map a rectangle onto a quad using two affine triangle transforms. */
-export function drawImageInQuad(
-  ctx: CanvasRenderingContext2D,
-  source: CanvasImageSource,
-  sw: number,
-  sh: number,
-  quad: Quad
-) {
-  const { tl, tr, br, bl } = quad;
-
-  drawTriangle(ctx, source, sw, sh, 0, 0, sw, 0, sw, sh, tl, tr, br);
-  drawTriangle(ctx, source, sw, sh, 0, 0, 0, sh, sw, sh, tl, bl, br);
+/** Corners of the printable trapezoid in design-canvas pixels. */
+export function getDesignQuad(canvasW = CANVAS_W, canvasH = CANVAS_H): Quad {
+  const mmToPxVal = canvasW / 46.0;
+  const leftH = Math.round(14.0 * mmToPxVal);
+  const leftTopY = Math.round((canvasH - leftH) / 2);
+  const leftBottomY = leftTopY + leftH;
+  return {
+    tl: { x: 0, y: leftTopY },
+    tr: { x: canvasW, y: 0 },
+    br: { x: canvasW, y: canvasH },
+    bl: { x: 0, y: leftBottomY },
+  };
 }
 
 function drawTriangle(
@@ -44,36 +38,45 @@ function drawTriangle(
   ctx.closePath();
   ctx.clip();
 
-  const t = affineFromTriangles(sx0, sy0, sx1, sy1, sx2, sy2, d0.x, d0.y, d1.x, d1.y, d2.x, d2.y);
-  ctx.transform(t.a, t.b, t.c, t.d, t.e, t.f);
+  const denom = sx0 * (sy1 - sy2) + sx1 * (sy2 - sy0) + sx2 * (sy0 - sy1);
+  const a = (d0.x * (sy1 - sy2) + d1.x * (sy2 - sy0) + d2.x * (sy0 - sy1)) / denom;
+  const b = (d0.y * (sy1 - sy2) + d1.y * (sy2 - sy0) + d2.y * (sy0 - sy1)) / denom;
+  const c = (d0.x * (sx2 - sx1) + d1.x * (sx0 - sx2) + d2.x * (sx1 - sx0)) / denom;
+  const d = (d0.y * (sx2 - sx1) + d1.y * (sx0 - sx2) + d2.y * (sx1 - sx0)) / denom;
+  const e =
+    (d0.x * (sx1 * sy2 - sx2 * sy1) + d1.x * (sx2 * sy0 - sx0 * sy2) + d2.x * (sx0 * sy1 - sx1 * sy0)) /
+    denom;
+  const f =
+    (d0.y * (sx1 * sy2 - sx2 * sy1) + d1.y * (sx2 * sy0 - sx0 * sy2) + d2.y * (sx0 * sy1 - sx1 * sy0)) /
+    denom;
+
+  ctx.transform(a, b, c, d, e, f);
   ctx.drawImage(source, 0, 0, sw, sh);
   ctx.restore();
 }
 
-function affineFromTriangles(
-  sx0: number,
-  sy0: number,
-  sx1: number,
-  sy1: number,
-  sx2: number,
-  sy2: number,
-  dx0: number,
-  dy0: number,
-  dx1: number,
-  dy1: number,
-  dx2: number,
-  dy2: number
+/** Map the design trapezoid (red frame shape) onto the photo recess quad. */
+export function drawDesignOnPhotoQuad(
+  ctx: CanvasRenderingContext2D,
+  source: CanvasImageSource,
+  sw: number,
+  sh: number,
+  design: Quad,
+  photo: Quad
 ) {
-  const denom = sx0 * (sy1 - sy2) + sx1 * (sy2 - sy0) + sx2 * (sy0 - sy1);
-  const a = (dx0 * (sy1 - sy2) + dx1 * (sy2 - sy0) + dx2 * (sy0 - sy1)) / denom;
-  const b = (dy0 * (sy1 - sy2) + dy1 * (sy2 - sy0) + dy2 * (sy0 - sy1)) / denom;
-  const c = (dx0 * (sx2 - sx1) + dx1 * (sx0 - sx2) + dx2 * (sx1 - sx0)) / denom;
-  const d = (dy0 * (sx2 - sx1) + dy1 * (sx0 - sx2) + dy2 * (sx1 - sx0)) / denom;
-  const e =
-    (dx0 * (sx1 * sy2 - sx2 * sy1) + dx1 * (sx2 * sy0 - sx0 * sy2) + dx2 * (sx0 * sy1 - sx1 * sy0)) /
-    denom;
-  const f =
-    (dy0 * (sx1 * sy2 - sx2 * sy1) + dy1 * (sx2 * sy0 - sx0 * sy2) + dy2 * (sx0 * sy1 - sx1 * sy0)) /
-    denom;
-  return { a, b, c, d, e, f };
+  const { tl, tr, br, bl } = design;
+  const p = photo;
+  drawTriangle(ctx, source, sw, sh, tl.x, tl.y, tr.x, tr.y, br.x, br.y, p.tl, p.tr, p.br);
+  drawTriangle(ctx, source, sw, sh, tl.x, tl.y, bl.x, bl.y, br.x, br.y, p.tl, p.bl, p.br);
+}
+
+/** @deprecated use drawDesignOnPhotoQuad */
+export function drawImageInQuad(
+  ctx: CanvasRenderingContext2D,
+  source: CanvasImageSource,
+  sw: number,
+  sh: number,
+  quad: Quad
+) {
+  drawDesignOnPhotoQuad(ctx, source, sw, sh, getDesignQuad(sw, sh), quad);
 }
