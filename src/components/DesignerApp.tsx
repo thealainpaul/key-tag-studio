@@ -13,6 +13,8 @@ import {
   payloadForSubmit,
   preloadImage,
 } from "@/lib/canvas-render";
+import { scaleImageUniform } from "@/lib/canvas-gestures";
+import { useCanvasGestures } from "@/hooks/useCanvasGestures";
 import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
 
 const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
@@ -20,7 +22,8 @@ const AI_SLOT_COUNT = 3;
 
 type AiSlot = AiSlotResult;
 
-const AI_STAGGER_MS = 8000;
+/** Start all 3 AI requests immediately — they finish at different times naturally. */
+const AI_STAGGER_MS = 0;
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -50,7 +53,6 @@ export default function DesignerApp() {
   const [message, setMessage] = useState("");
   const [fitMode, setFitMode] = useState<"auto" | "manual">("manual");
   const [canvasReady, setCanvasReady] = useState(false);
-  const dragRef = useRef<{ type: "text" | "image"; id: string; ox: number; oy: number } | null>(null);
   const tagColorRef = useRef(tagColor);
 
   imagesRef.current = images;
@@ -79,96 +81,23 @@ export default function DesignerApp() {
     redrawContent();
   }, [tagColor, images, textLines, redrawContent]);
 
-  function canvasPoint(clientX: number, clientY: number) {
-    const canvas = contentCanvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: ((clientX - rect.left) / rect.width) * CANVAS_W,
-      y: ((clientY - rect.top) / rect.height) * CANVAS_H,
-    };
+  const { beginDrag, moveDrag, endDrag } = useCanvasGestures({
+    canvasRef: contentCanvasRef,
+    imagesRef,
+    textLinesRef,
+    selectedBgIdRef,
+    tagColorRef,
+    redrawContent,
+    onImagesChange: setImages,
+    onTextLinesChange: setTextLines,
+    onSelectText: setSelectedTextId,
+  });
+
+  function scaleActiveImage(factor: number) {
+    const id = selectedBgId || images[0]?.id;
+    if (!id) return;
+    setImages((prev) => prev.map((img) => (img.id === id ? scaleImageUniform(img, factor) : img)));
   }
-
-  function hitText(ctx: CanvasRenderingContext2D, line: TextLine, x: number, y: number) {
-    ctx.font = `${line.fontSize}px "${line.fontFamily}"`;
-    const w = ctx.measureText(line.text).width;
-    const h = line.fontSize * 1.3;
-    return x >= line.x - w / 2 - 16 && x <= line.x + w / 2 + 16 && y >= line.y - h / 2 - 16 && y <= line.y + h / 2 + 16;
-  }
-
-  function beginDrag(clientX: number, clientY: number) {
-    const canvas = contentCanvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!ctx) return;
-
-    const bgImage = imagesRef.current.find((i) => i.id === selectedBgIdRef.current) || imagesRef.current[0];
-    const { x, y } = canvasPoint(clientX, clientY);
-    const hit = [...textLinesRef.current].reverse().find((line) => line.text.trim() && hitText(ctx, line, x, y));
-
-    if (hit) {
-      setSelectedTextId(hit.id);
-      dragRef.current = { type: "text", id: hit.id, ox: x - hit.x, oy: y - hit.y };
-      return;
-    }
-    if (bgImage) {
-      setSelectedTextId(null);
-      dragRef.current = { type: "image", id: bgImage.id, ox: x - bgImage.x, oy: y - bgImage.y };
-    }
-  }
-
-  function moveDrag(clientX: number, clientY: number) {
-    if (!dragRef.current) return;
-    const { x, y } = canvasPoint(clientX, clientY);
-
-    if (dragRef.current.type === "text") {
-      const next = textLinesRef.current.map((line) =>
-        line.id === dragRef.current!.id ? { ...line, x: x - dragRef.current!.ox, y: y - dragRef.current!.oy } : line
-      );
-      textLinesRef.current = next;
-      redrawContent(imagesRef.current, next, tagColorRef.current);
-    } else {
-      const next = imagesRef.current.map((img) =>
-        img.id === dragRef.current!.id ? { ...img, x: x - dragRef.current!.ox, y: y - dragRef.current!.oy } : img
-      );
-      imagesRef.current = next;
-      redrawContent(next, textLinesRef.current, tagColorRef.current);
-    }
-  }
-
-  function endDrag() {
-    if (!dragRef.current) return;
-    if (dragRef.current.type === "text") setTextLines([...textLinesRef.current]);
-    else setImages([...imagesRef.current]);
-    dragRef.current = null;
-  }
-
-  useEffect(() => {
-    const canvas = contentCanvasRef.current;
-    if (!canvas) return;
-
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
-      beginDrag(e.touches[0].clientX, e.touches[0].clientY);
-    };
-    const onTouchMove = (e: TouchEvent) => {
-      if (!dragRef.current || e.touches.length !== 1) return;
-      e.preventDefault();
-      moveDrag(e.touches[0].clientX, e.touches[0].clientY);
-    };
-    const onTouchEnd = () => endDrag();
-
-    canvas.addEventListener("touchstart", onTouchStart, { passive: true });
-    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
-    canvas.addEventListener("touchend", onTouchEnd);
-    canvas.addEventListener("touchcancel", onTouchEnd);
-
-    return () => {
-      canvas.removeEventListener("touchstart", onTouchStart);
-      canvas.removeEventListener("touchmove", onTouchMove);
-      canvas.removeEventListener("touchend", onTouchEnd);
-      canvas.removeEventListener("touchcancel", onTouchEnd);
-    };
-  }, [redrawContent]);
 
   async function addAiImage(url: string) {
     const image = await preloadImage(url, imageCache.current);
@@ -293,7 +222,17 @@ export default function DesignerApp() {
           <p>Upload or create your own image with AI</p>
           <p>The black space is where the image will appear</p>
           <p>The red frame and all outside of that is not where the image would appear</p>
+          {images.length > 0 && (
+            <p>Drag to move · Pinch with two fingers to resize (or use − + below)</p>
+          )}
         </div>
+        {images.length > 0 && (
+          <div className="image-scale-bar">
+            <button type="button" className="btn secondary compact" onClick={() => scaleActiveImage(0.9)} aria-label="Smaller">−</button>
+            <span className="muted">Image size</span>
+            <button type="button" className="btn secondary compact" onClick={() => scaleActiveImage(1.1)} aria-label="Larger">+</button>
+          </div>
+        )}
       </div>
 
       <div className="controls">
@@ -356,7 +295,7 @@ export default function DesignerApp() {
             </div>
             {aiLoading && (
               <p className="muted" style={{ margin: "0.75rem 0 0", fontSize: "0.9rem" }}>
-                Your images will appear shortly — please be patient. Each one can take up to a minute to generate.
+                Your images will appear shortly — all 3 start at once and finish one by one. Please be patient.
               </p>
             )}
             {aiError && <p style={{ color: "var(--danger)" }}>{aiError}</p>}
@@ -372,6 +311,7 @@ export default function DesignerApp() {
                   <AiImageSlot
                     key={`${aiRunId}-${i}`}
                     id={aiResults[i]?.id ?? `ai-${aiRunId}-${i}`}
+                    slotNumber={i + 1}
                     prompt={aiPrompt}
                     seed={seed}
                     waitBeforeStart={i * AI_STAGGER_MS}

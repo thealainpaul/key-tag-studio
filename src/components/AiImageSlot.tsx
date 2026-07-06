@@ -12,6 +12,7 @@ export type AiSlotResult = {
 
 type Props = {
   id: string;
+  slotNumber?: number;
   prompt: string;
   seed: number;
   waitBeforeStart: number;
@@ -20,17 +21,18 @@ type Props = {
   onPick: (url: string) => void;
 };
 
-const MAX_RETRIES = 30;
-const RETRY_MS = 7000;
+const RETRY_MS = 6000;
 
-export default function AiImageSlot({ id, prompt, seed, waitBeforeStart, active, onUpdate, onPick }: Props) {
+export default function AiImageSlot({ id, slotNumber, prompt, seed, waitBeforeStart, active, onUpdate, onPick }: Props) {
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [readyUrl, setReadyUrl] = useState<string | null>(null);
   const retryRef = useRef(0);
   const seedRef = useRef(seed);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const activeRef = useRef(active);
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
+  activeRef.current = active;
 
   useEffect(() => {
     if (!active) return;
@@ -41,17 +43,19 @@ export default function AiImageSlot({ id, prompt, seed, waitBeforeStart, active,
     setReadyUrl(null);
     onUpdateRef.current({ id, url: null, status: "loading" });
 
-    timerRef.current = setTimeout(() => {
-      setImgSrc(`${makePollinationsUrl(prompt, seedRef.current)}&_=${Date.now()}`);
-    }, waitBeforeStart);
+    const start = () => {
+      if (!activeRef.current) return;
+      setImgSrc(`${makePollinationsUrl(prompt, seedRef.current, retryRef.current > 8)}&_=${Date.now()}`);
+    };
+
+    timerRef.current = setTimeout(start, waitBeforeStart);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [active, id, prompt, seed, waitBeforeStart]);
 
-  async function tryServerFallback() {
-    onUpdateRef.current({ id, url: null, status: "loading" });
+  async function tryServerFallback(): Promise<boolean> {
     try {
       const res = await fetch("/api/designer/generate-one", {
         method: "POST",
@@ -66,29 +70,30 @@ export default function AiImageSlot({ id, prompt, seed, waitBeforeStart, active,
         return true;
       }
     } catch {
-      // fall through
+      // keep trying
     }
     return false;
   }
 
   function scheduleRetry() {
+    if (!activeRef.current || readyUrl) return;
     retryRef.current += 1;
 
-    if (retryRef.current > MAX_RETRIES) {
-      void (async () => {
-        const ok = await tryServerFallback();
-        if (!ok) {
-          onUpdateRef.current({ id, url: null, status: "error", error: "Could not generate this option" });
-        }
-      })();
+    if (retryRef.current % 12 === 0) {
+      void tryServerFallback().then((ok) => {
+        if (!ok && activeRef.current && !readyUrl) queueRetry();
+      });
       return;
     }
 
+    queueRetry();
+  }
+
+  function queueRetry() {
     seedRef.current += 7919 + retryRef.current * 211;
-    const simple = retryRef.current > 6;
     timerRef.current = setTimeout(() => {
-      setReadyUrl(null);
-      setImgSrc(`${makePollinationsUrl(prompt, seedRef.current, simple)}&_=${Date.now()}`);
+      if (!activeRef.current || readyUrl) return;
+      setImgSrc(`${makePollinationsUrl(prompt, seedRef.current, retryRef.current > 8)}&_=${Date.now()}`);
     }, RETRY_MS);
   }
 
@@ -98,7 +103,7 @@ export default function AiImageSlot({ id, prompt, seed, waitBeforeStart, active,
       scheduleRetry();
       return;
     }
-    const finalUrl = readyUrl ?? makePollinationsUrl(prompt, seedRef.current, retryRef.current > 6);
+    const finalUrl = readyUrl ?? makePollinationsUrl(prompt, seedRef.current, retryRef.current > 8);
     setReadyUrl(finalUrl);
     onUpdateRef.current({ id, url: finalUrl, status: "ok" });
   }
@@ -127,7 +132,11 @@ export default function AiImageSlot({ id, prompt, seed, waitBeforeStart, active,
           }}
         />
       )}
-      {!isOk && <span className="ai-slot-msg">Generating…</span>}
+      {!isOk && (
+        <span className="ai-slot-msg">
+          {slotNumber ? `Image ${slotNumber}…` : "Generating…"}
+        </span>
+      )}
     </div>
   );
 }

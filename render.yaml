@@ -2,9 +2,12 @@ services:
   - type: web
     name: key-tag-studio
     runtime: node
+    repo: https://github.com/thealainpaul/key-tag-studio
+    branch: main
+    autoDeploy: true
     buildCommand: npm install && npm run build
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: /
     envVars:
       - key: DATABASE_URL
         value: file:./prisma/prod.db

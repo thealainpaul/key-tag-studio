@@ -11,6 +11,8 @@ import {
   preloadAllImages,
   printFileDataUrl,
 } from "@/lib/canvas-render";
+import { scaleImageUniform } from "@/lib/canvas-gestures";
+import { useCanvasGestures } from "@/hooks/useCanvasGestures";
 import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
 
 type Props = {
@@ -25,7 +27,8 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
   const imagesRef = useRef<DesignImage[]>(initialPayload.images);
   const textLinesRef = useRef<TextLine[]>(initialPayload.textLines);
-  const dragRef = useRef<{ type: "text" | "image"; id: string; ox: number; oy: number } | null>(null);
+  const selectedBgIdRef = useRef<string | null>(initialPayload.backgroundImageId);
+  const tagColorRef = useRef(initialPayload.tagColor);
 
   const [tagColor, setTagColor] = useState(initialPayload.tagColor);
   const [images, setImages] = useState<DesignImage[]>(initialPayload.images);
@@ -36,6 +39,8 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
 
   imagesRef.current = images;
   textLinesRef.current = textLines;
+  selectedBgIdRef.current = selectedBgId;
+  tagColorRef.current = tagColor;
 
   const redrawContent = useCallback(
     (nextImages = imagesRef.current, nextTextLines = textLinesRef.current, color = tagColor) => {
@@ -60,62 +65,21 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
     if (ready) redrawContent();
   }, [tagColor, images, textLines, ready, redrawContent]);
 
-  function canvasPoint(clientX: number, clientY: number) {
-    const canvas = contentCanvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: ((clientX - rect.left) / rect.width) * CANVAS_W,
-      y: ((clientY - rect.top) / rect.height) * CANVAS_H,
-    };
-  }
+  const { beginDrag, moveDrag, endDrag } = useCanvasGestures({
+    canvasRef: contentCanvasRef,
+    imagesRef,
+    textLinesRef,
+    selectedBgIdRef,
+    tagColorRef,
+    redrawContent,
+    onImagesChange: setImages,
+    onTextLinesChange: setTextLines,
+  });
 
-  function beginDrag(clientX: number, clientY: number) {
-    const ctx = contentCanvasRef.current?.getContext("2d");
-    if (!ctx) return;
-    const bg = imagesRef.current.find((i) => i.id === selectedBgId) || imagesRef.current[0];
-    const { x, y } = canvasPoint(clientX, clientY);
-
-    const hitText = [...textLinesRef.current].reverse().find((line) => {
-      if (!line.text.trim()) return false;
-      ctx.font = `${line.fontSize}px "${line.fontFamily}"`;
-      const w = ctx.measureText(line.text).width;
-      const h = line.fontSize * 1.3;
-      return x >= line.x - w / 2 - 16 && x <= line.x + w / 2 + 16 && y >= line.y - h / 2 - 16 && y <= line.y + h / 2 + 16;
-    });
-
-    if (hitText) {
-      dragRef.current = { type: "text", id: hitText.id, ox: x - hitText.x, oy: y - hitText.y };
-      return;
-    }
-    if (bg) {
-      dragRef.current = { type: "image", id: bg.id, ox: x - bg.x, oy: y - bg.y };
-    }
-  }
-
-  function moveDrag(clientX: number, clientY: number) {
-    if (!dragRef.current) return;
-    const { x, y } = canvasPoint(clientX, clientY);
-    if (dragRef.current.type === "text") {
-      const next = textLinesRef.current.map((l) =>
-        l.id === dragRef.current!.id ? { ...l, x: x - dragRef.current!.ox, y: y - dragRef.current!.oy } : l
-      );
-      textLinesRef.current = next;
-      redrawContent(imagesRef.current, next);
-    } else {
-      const next = imagesRef.current.map((img) =>
-        img.id === dragRef.current!.id ? { ...img, x: x - dragRef.current!.ox, y: y - dragRef.current!.oy } : img
-      );
-      imagesRef.current = next;
-      redrawContent(next, textLinesRef.current);
-    }
-  }
-
-  function endDrag() {
-    if (!dragRef.current) return;
-    if (dragRef.current.type === "text") setTextLines([...textLinesRef.current]);
-    else setImages([...imagesRef.current]);
-    dragRef.current = null;
+  function scaleActiveImage(factor: number) {
+    const id = selectedBgId || images[0]?.id;
+    if (!id) return;
+    setImages((prev) => prev.map((img) => (img.id === id ? scaleImageUniform(img, factor) : img)));
   }
 
   function currentPayload(): DesignPayload {
@@ -174,6 +138,18 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
               <canvas ref={borderCanvasRef} width={CANVAS_W} height={CANVAS_H} className="preview-border" aria-hidden="true" />
             </div>
           </div>
+          {images.length > 0 && (
+            <>
+              <p className="muted" style={{ textAlign: "center", margin: "0.5rem 0 0", fontSize: "0.85rem" }}>
+                Drag to move · Pinch to resize (or use − +)
+              </p>
+              <div className="image-scale-bar">
+                <button type="button" className="btn secondary compact" onClick={() => scaleActiveImage(0.9)} aria-label="Smaller">−</button>
+                <span className="muted">Image size</span>
+                <button type="button" className="btn secondary compact" onClick={() => scaleActiveImage(1.1)} aria-label="Larger">+</button>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="field">
