@@ -250,7 +250,7 @@ export default function DesignerApp() {
             Upload (we fit it for you)
             <input hidden type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
           </label>
-          <button className="btn secondary compact" onClick={() => setAiOpen(true)}>AI</button>
+          <button className="btn secondary compact" onClick={() => setAiOpen(true)}>Generate image with AI</button>
           <button className="btn secondary compact" onClick={addTextLine}>+ Text</button>
         </div>
 

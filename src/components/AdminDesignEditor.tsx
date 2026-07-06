@@ -6,10 +6,10 @@ import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
 import {
   drawBorderLayer,
   drawContentLayer,
-  downloadDataUrl,
+  downloadBlob,
   mergedPreviewDataUrl,
   preloadAllImages,
-  printFileDataUrl,
+  printFileBlob,
 } from "@/lib/canvas-render";
 import { scaleImageUniform } from "@/lib/canvas-gestures";
 import { useCanvasGestures } from "@/hooks/useCanvasGestures";
@@ -104,9 +104,9 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
     setMessage(data.success ? "Saved." : data.error || "Save failed");
   }
 
-  function downloadPrint() {
-    const dataUrl = printFileDataUrl(currentPayload(), imageCache.current);
-    downloadDataUrl(dataUrl, `keytag-print-${designId}.png`);
+  async function downloadPrint() {
+    const dataUrl = await printFileBlob(currentPayload(), imageCache.current);
+    downloadBlob(dataUrl, `keytag-print-${designId}.png`);
   }
 
   return (

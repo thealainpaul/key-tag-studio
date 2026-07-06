@@ -5,6 +5,9 @@ export const KEYTAG_SPECS = {
   scale: 2,
 };
 
+/** DPI embedded in print PNG files (600 × 2). */
+export const PRINT_DPI = KEYTAG_SPECS.dpi * KEYTAG_SPECS.scale;
+
 export function mmToPx(mm: number, dpi = KEYTAG_SPECS.dpi, scale = KEYTAG_SPECS.scale) {
   return Math.round((mm / 25.4) * dpi * scale);
 }

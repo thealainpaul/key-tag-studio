@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DesignPayload } from "@/lib/design";
-import { downloadDataUrl, preloadAllImages, printFileDataUrl } from "@/lib/canvas-render";
+import { downloadBlob, preloadAllImages, printFileBlob } from "@/lib/canvas-render";
 
 type Design = {
   id: string;
@@ -57,8 +57,8 @@ export default function AdminDesignsPage() {
     const payload: DesignPayload = JSON.parse(d.designJson);
     const cache = new Map<string, HTMLImageElement>();
     await preloadAllImages(payload.images, cache);
-    const dataUrl = printFileDataUrl(payload, cache);
-    downloadDataUrl(dataUrl, `keytag-print-${d.id}.png`);
+    const blob = await printFileBlob(payload, cache);
+    downloadBlob(blob, `keytag-print-${d.id}.png`);
   }
 
   async function logout() {

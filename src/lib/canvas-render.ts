@@ -1,5 +1,6 @@
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
-import { CANVAS_H, CANVAS_W, drawKeyTagBorder, drawKeyTagFill, getTagMetrics } from "@/lib/keytag-shape";
+import { CANVAS_H, CANVAS_W, drawKeyTagBorder, drawKeyTagFill, getTagMetrics, PRINT_DPI } from "@/lib/keytag-shape";
+import { embedPngDpi } from "@/lib/png-dpi";
 
 export function preloadImage(url: string, cache: Map<string, HTMLImageElement>) {
   const existing = cache.get(url);
@@ -90,14 +91,39 @@ export function mergedPreviewDataUrl(
   return merged.toDataURL("image/png");
 }
 
-/** Production print file — tag artwork only, no red guide border. */
-export function printFileDataUrl(
+/** Production print file — tag artwork only, no red guide border, 1200 DPI tagged. */
+export async function printFileBlob(
   payload: DesignPayload,
   cache: Map<string, HTMLImageElement>
-): string {
+): Promise<Blob> {
   const canvas = document.createElement("canvas");
   drawContentLayer(canvas, payload.tagColor, payload.images, payload.textLines, cache);
-  return canvas.toDataURL("image/png");
+  const raw = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!raw) throw new Error("PNG export failed");
+  const tagged = embedPngDpi(new Uint8Array(await raw.arrayBuffer()), PRINT_DPI);
+  return new Blob([tagged.slice().buffer], { type: "image/png" });
+}
+
+export async function printFileDataUrl(
+  payload: DesignPayload,
+  cache: Map<string, HTMLImageElement>
+): Promise<string> {
+  const blob = await printFileBlob(payload, cache);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export function downloadDataUrl(dataUrl: string, filename: string) {
