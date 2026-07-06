@@ -17,13 +17,15 @@ export function drawImageInQuad(
 ) {
   const { tl, tr, br, bl } = quad;
 
-  drawTriangle(ctx, source, 0, 0, sw, 0, sw, sh, tl, tr, br);
-  drawTriangle(ctx, source, 0, 0, 0, sh, sw, sh, tl, bl, br);
+  drawTriangle(ctx, source, sw, sh, 0, 0, sw, 0, sw, sh, tl, tr, br);
+  drawTriangle(ctx, source, sw, sh, 0, 0, 0, sh, sw, sh, tl, bl, br);
 }
 
 function drawTriangle(
   ctx: CanvasRenderingContext2D,
   source: CanvasImageSource,
+  sw: number,
+  sh: number,
   sx0: number,
   sy0: number,
   sx1: number,
