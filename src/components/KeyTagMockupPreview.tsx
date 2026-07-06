@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, type RefObject } from "react";
-import { CANVAS_H, CANVAS_W, getTagMetrics } from "@/lib/keytag-shape";
-import { MOCKUP_ART_PIXELS, MOCKUP_PHOTO } from "@/lib/mockup-layout";
+import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
+import { MOCKUP_ART_QUAD, MOCKUP_PHOTO } from "@/lib/mockup-layout";
+import { drawImageInQuad } from "@/lib/mockup-quad";
 
 type Props = {
   contentCanvasRef: RefObject<HTMLCanvasElement | null>;
@@ -42,20 +43,9 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
     const ctx = output.getContext("2d");
     if (!ctx) return;
 
-    const { x, y, w, h } = MOCKUP_ART_PIXELS;
-
     ctx.clearRect(0, 0, pw, ph);
     ctx.drawImage(photo, 0, 0, pw, ph);
-
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(w / CANVAS_W, h / CANVAS_H);
-
-    const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
-    metrics.drawGeometry(ctx);
-    ctx.clip();
-    ctx.drawImage(content, 0, 0);
-    ctx.restore();
+    drawImageInQuad(ctx, content, CANVAS_W, CANVAS_H, MOCKUP_ART_QUAD);
   }
 
   useEffect(() => {
