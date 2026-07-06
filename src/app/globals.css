@@ -130,9 +130,7 @@ button, input, select, textarea { font: inherit; }
   max-width: 520px;
   margin: 0 auto;
   background: #000;
-  border-radius: 6px;
-  padding: 8px;
-  overflow: visible;
+  padding: 10px;
 }
 
 .tag-mockup-canvas {
@@ -140,7 +138,7 @@ button, input, select, textarea { font: inherit; }
   height: auto;
   display: block;
   margin: 0 auto;
-  background: #000;
+  vertical-align: top;
 }
 
 .controls {
