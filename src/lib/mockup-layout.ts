@@ -5,19 +5,19 @@ export const MOCKUP_PHOTO = {
   height: 266,
 };
 
-/** Shift photo up so the tag is centred on the black canvas (tag was flush to the bottom). */
-export const MOCKUP_PHOTO_OFFSET_Y = -34;
+/** Shift photo up to centre tag on black (tag sits y=70–265 in file, flush to bottom). */
+export const MOCKUP_PHOTO_OFFSET_Y = -28;
 
 /** Extra black padding below the tag in the preview canvas. */
-export const MOCKUP_CANVAS_PAD_BOTTOM = 10;
+export const MOCKUP_CANVAS_PAD_BOTTOM = 14;
 
 /** Full recess (pic + QR) on the product photo. */
 export const MOCKUP_ART_PIXELS = {
-  x: 325,
-  y: 75,
-  w: 488,
-  h: 192,
+  x: 327,
+  y: 77,
+  w: 484,
+  h: 188,
 };
 
 /** Counter-clockwise around bottom-right — drops the left edge down. */
-export const MOCKUP_ROTATE_RAD = -0.026;
+export const MOCKUP_ROTATE_RAD = -0.032;

@@ -131,7 +131,7 @@ button, input, select, textarea { font: inherit; }
   margin: 0 auto;
   background: #000;
   border-radius: 6px;
-  overflow: hidden;
+  padding: 4px;
 }
 
 .tag-mockup-canvas {
