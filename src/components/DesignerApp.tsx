@@ -6,6 +6,7 @@ import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
 import { fitCoverInFrame, fitWidthInFrame } from "@/lib/design";
 import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
 import { AI_SLOT_CONFIG } from "@/lib/ai-providers";
+import KeyTagMockupPreview from "@/components/KeyTagMockupPreview";
 import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
 import {
   drawBorderLayer,
@@ -56,6 +57,7 @@ export default function DesignerApp() {
   const [message, setMessage] = useState("");
   const [fitMode, setFitMode] = useState<"auto" | "manual">("manual");
   const [canvasReady, setCanvasReady] = useState(false);
+  const [mockupRevision, setMockupRevision] = useState(0);
   const tagColorRef = useRef(tagColor);
 
   imagesRef.current = images;
@@ -82,6 +84,7 @@ export default function DesignerApp() {
 
   useEffect(() => {
     redrawContent();
+    setMockupRevision((r) => r + 1);
   }, [tagColor, images, textLines, redrawContent]);
 
   useCanvasGestures({
@@ -259,6 +262,11 @@ export default function DesignerApp() {
             <button type="button" className="btn secondary compact" onClick={() => scaleActiveImage(1.1)} aria-label="Larger">+</button>
           </div>
         )}
+        <KeyTagMockupPreview
+          contentCanvasRef={contentCanvasRef}
+          active={images.length > 0}
+          revision={mockupRevision}
+        />
       </div>
 
       <div className="controls">

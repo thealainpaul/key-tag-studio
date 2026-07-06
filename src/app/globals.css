@@ -111,6 +111,53 @@ button, input, select, textarea { font: inherit; }
   line-height: 1;
 }
 
+.tag-mockup-panel {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.tag-mockup-title {
+  margin: 0 0 0.5rem;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.tag-mockup-crop {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #000;
+}
+
+.tag-mockup-photo {
+  width: 100%;
+  height: auto;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.tag-mockup-art {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.tag-mockup-art-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
 .controls {
   background: var(--surface);
   border: 1px solid var(--border);
