@@ -32,6 +32,7 @@ function uid() {
 export default function DesignerApp() {
   const contentCanvasRef = useRef<HTMLCanvasElement>(null);
   const borderCanvasRef = useRef<HTMLCanvasElement>(null);
+  const previewStackRef = useRef<HTMLDivElement>(null);
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
   const imagesRef = useRef<DesignImage[]>([]);
   const textLinesRef = useRef<TextLine[]>([]);
@@ -83,6 +84,7 @@ export default function DesignerApp() {
 
   const { beginDrag, moveDrag, endDrag } = useCanvasGestures({
     canvasRef: contentCanvasRef,
+    touchTargetRef: previewStackRef,
     imagesRef,
     textLinesRef,
     selectedBgIdRef,
@@ -203,7 +205,7 @@ export default function DesignerApp() {
 
       <div className="preview-panel">
         <div className="preview-wrap">
-          <div className="preview-stack">
+          <div className="preview-stack" ref={previewStackRef}>
             {!canvasReady && <KeyTagPlaceholder />}
             <canvas
               ref={contentCanvasRef}

@@ -25,17 +25,14 @@ export type PinchState = {
   cy: number;
 };
 
-export function imageFromPinch(pinch: PinchState, currentDist: number): DesignImage {
+export function pinchImageDimensions(pinch: PinchState, currentDist: number) {
   const scale = currentDist / pinch.startDist;
   const width = pinch.startW * scale;
   const height = pinch.startH * scale;
   return {
-    id: pinch.id,
-    url: "",
     x: pinch.cx - width / 2,
     y: pinch.cy - height / 2,
     width,
     height,
-    rotation: 0,
   };
 }

@@ -24,6 +24,7 @@ type Props = {
 export default function AdminDesignEditor({ designId, initialPayload, initialStatus }: Props) {
   const contentCanvasRef = useRef<HTMLCanvasElement>(null);
   const borderCanvasRef = useRef<HTMLCanvasElement>(null);
+  const previewStackRef = useRef<HTMLDivElement>(null);
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
   const imagesRef = useRef<DesignImage[]>(initialPayload.images);
   const textLinesRef = useRef<TextLine[]>(initialPayload.textLines);
@@ -67,6 +68,7 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
 
   const { beginDrag, moveDrag, endDrag } = useCanvasGestures({
     canvasRef: contentCanvasRef,
+    touchTargetRef: previewStackRef,
     imagesRef,
     textLinesRef,
     selectedBgIdRef,
@@ -124,7 +126,7 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
 
         <div className="preview-panel" style={{ marginBottom: "1rem" }}>
           <div className="preview-wrap">
-            <div className="preview-stack">
+            <div className="preview-stack" ref={previewStackRef}>
               <canvas
                 ref={contentCanvasRef}
                 width={CANVAS_W}

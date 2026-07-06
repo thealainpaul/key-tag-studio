@@ -50,6 +50,7 @@ button, input, select, textarea { font: inherit; }
   position: relative;
   width: 100%;
   max-width: 100%;
+  touch-action: none;
 }
 
 .preview-placeholder {
