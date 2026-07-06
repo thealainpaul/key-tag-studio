@@ -34,11 +34,16 @@ export const AI_GEN_W = 1280;
 export const AI_GEN_H = Math.round(AI_GEN_W / (46.0 / 19.9));
 
 /** Short Pollinations URL. Long URLs were causing failed requests. */
-export function makePollinationsUrl(userPrompt: string, seed: number, simple = false): string {
+export function makePollinationsUrl(
+  userPrompt: string,
+  seed: number,
+  simple = false,
+  model = "turbo"
+): string {
   const text = simple
     ? `${userPrompt.trim()}, wide banner photo`
     : `${userPrompt.trim()}, wide horizontal banner photo, subject on its side, realistic`;
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(text)}?width=${AI_GEN_W}&height=${AI_GEN_H}&seed=${seed}&model=turbo&nologo=true`;
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(text)}?width=${AI_GEN_W}&height=${AI_GEN_H}&seed=${seed}&model=${model}&nologo=true`;
 }
 
 export function buildAiPrompt(userPrompt: string): string {

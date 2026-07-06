@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
 import { fitWidthInFrame, naturalCenterPlacement } from "@/lib/design";
 import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
-import { AI_SLOT_PROVIDERS } from "@/lib/ai-providers";
+import { AI_SLOT_CONFIG } from "@/lib/ai-providers";
 import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
 import {
   drawBorderLayer,
@@ -23,7 +23,6 @@ const AI_SLOT_COUNT = 3;
 
 type AiSlot = AiSlotResult;
 
-/** Each slot uses a different provider — no stagger needed. */
 const AI_STAGGER_MS = 0;
 
 function uid() {
@@ -296,7 +295,7 @@ export default function DesignerApp() {
             </div>
             {aiLoading && (
               <p className="muted" style={{ margin: "0.75rem 0 0", fontSize: "0.9rem" }}>
-                Image 1 is usually fastest. Image 3 uses a free community service and may take a few minutes.
+                Images 1 and 2 start together. Image 3 starts right after image 1 is ready.
               </p>
             )}
             {aiError && <p style={{ color: "var(--danger)" }}>{aiError}</p>}
@@ -308,16 +307,23 @@ export default function DesignerApp() {
             </div>
             {(aiLoading || aiResults.length > 0) && aiSeeds.length === AI_SLOT_COUNT && (
               <div className="ai-grid">
-                {aiSeeds.map((seed, i) => (
+                {aiSeeds.map((seed, i) => {
+                  const cfg = AI_SLOT_CONFIG[i];
+                  const after = cfg.startsAfterSlot;
+                  const slotActive =
+                    aiLoading && (after === undefined || aiResults[after]?.status === "ok");
+                  return (
                   <AiImageSlot
                     key={`${aiRunId}-${i}`}
                     id={aiResults[i]?.id ?? `ai-${aiRunId}-${i}`}
                     slotNumber={i + 1}
-                    provider={AI_SLOT_PROVIDERS[i]}
+                    provider={cfg.provider}
+                    model={cfg.model}
                     prompt={aiPrompt}
                     seed={seed}
                     waitBeforeStart={i * AI_STAGGER_MS}
-                    active={aiLoading}
+                    active={slotActive}
+                    waitingForPrerequisite={aiLoading && after !== undefined && aiResults[after]?.status !== "ok"}
                     onUpdate={(slot) => {
                       setAiResults((prev) => {
                         const next = [...prev];
@@ -327,7 +333,8 @@ export default function DesignerApp() {
                     }}
                     onPick={pickAiImage}
                   />
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

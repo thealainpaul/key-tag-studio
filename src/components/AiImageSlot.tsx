@@ -15,10 +15,12 @@ type Props = {
   id: string;
   slotNumber?: number;
   provider: AiProvider;
+  model: string;
   prompt: string;
   seed: number;
   waitBeforeStart: number;
   active: boolean;
+  waitingForPrerequisite?: boolean;
   onUpdate: (slot: AiSlotResult) => void;
   onPick: (url: string) => void;
 };
@@ -31,10 +33,12 @@ export default function AiImageSlot({
   id,
   slotNumber,
   provider,
+  model,
   prompt,
   seed,
   waitBeforeStart,
   active,
+  waitingForPrerequisite,
   onUpdate,
   onPick,
 }: Props) {
@@ -67,7 +71,7 @@ export default function AiImageSlot({
         const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, seed: seedRef.current }),
+          body: JSON.stringify({ prompt, seed: seedRef.current, model }),
         });
         const data = await res.json();
         if (data.success && data.url) {
@@ -92,7 +96,7 @@ export default function AiImageSlot({
     const start = () => {
       if (!activeRef.current) return;
       if (provider === "pollinations-browser") {
-        setImgSrc(`${makePollinationsUrl(prompt, seedRef.current, retryRef.current > 8)}&_=${Date.now()}`);
+        setImgSrc(`${makePollinationsUrl(prompt, seedRef.current, retryRef.current > 8, model)}&_=${Date.now()}`);
       } else {
         void runServer();
       }
@@ -103,7 +107,7 @@ export default function AiImageSlot({
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [active, id, prompt, seed, waitBeforeStart, provider]);
+  }, [active, id, prompt, seed, waitBeforeStart, provider, model]);
 
   async function tryServerFallback(): Promise<boolean> {
     try {
@@ -144,7 +148,7 @@ export default function AiImageSlot({
     seedRef.current += 7919 + retryRef.current * 211;
     timerRef.current = setTimeout(() => {
       if (!activeRef.current || readyRef.current) return;
-      setImgSrc(`${makePollinationsUrl(prompt, seedRef.current, retryRef.current > 8)}&_=${Date.now()}`);
+      setImgSrc(`${makePollinationsUrl(prompt, seedRef.current, retryRef.current > 8, model)}&_=${Date.now()}`);
     }, RETRY_MS);
   }
 
@@ -154,7 +158,7 @@ export default function AiImageSlot({
       scheduleRetry();
       return;
     }
-    const finalUrl = readyUrl ?? makePollinationsUrl(prompt, seedRef.current, retryRef.current > 8);
+    const finalUrl = readyUrl ?? makePollinationsUrl(prompt, seedRef.current, retryRef.current > 8, model);
     readyRef.current = true;
     setReadyUrl(finalUrl);
     onUpdateRef.current({ id, url: finalUrl, status: "ok" });
@@ -166,7 +170,9 @@ export default function AiImageSlot({
 
   const isOk = !!readyUrl;
   const loadingMsg =
-    slotNumber && provider ? slotLoadingHint(slotNumber, provider) : "Generating…";
+    slotNumber
+      ? slotLoadingHint(slotNumber, !!waitingForPrerequisite)
+      : "Generating…";
 
   return (
     <div className={`ai-slot ai-slot-${isOk ? "ok" : "loading"}`}>
