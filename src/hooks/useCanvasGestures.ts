@@ -1,14 +1,15 @@
 import { useEffect, useRef } from "react";
 import type { DesignImage, TextLine } from "@/lib/design";
-import { pinchImageDimensions, touchDistance, type PinchState } from "@/lib/canvas-gestures";
+import { pinchImageDimensions, pointerDistance, type PinchState } from "@/lib/canvas-gestures";
 import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
 
 type DragState = { type: "text" | "image"; id: string; ox: number; oy: number };
+type PointerPoint = { x: number; y: number };
 
 type Options = {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
-  /** Touch listener target — defaults to canvas. Use the preview stack wrapper on mobile. */
   touchTargetRef?: React.RefObject<HTMLElement | null>;
+  enabled?: boolean;
   imagesRef: React.MutableRefObject<DesignImage[]>;
   textLinesRef: React.MutableRefObject<TextLine[]>;
   selectedBgIdRef: React.MutableRefObject<string | null>;
@@ -19,11 +20,12 @@ type Options = {
   onSelectText?: (id: string) => void;
 };
 
-const MIN_PINCH_DIST = 10;
+const MIN_PINCH_DIST = 24;
 
 export function useCanvasGestures({
   canvasRef,
   touchTargetRef,
+  enabled = true,
   imagesRef,
   textLinesRef,
   selectedBgIdRef,
@@ -35,6 +37,7 @@ export function useCanvasGestures({
 }: Options) {
   const dragRef = useRef<DragState | null>(null);
   const pinchRef = useRef<PinchState | null>(null);
+  const pointersRef = useRef(new Map<number, PointerPoint>());
 
   function canvasPoint(clientX: number, clientY: number) {
     const canvas = canvasRef.current;
@@ -106,9 +109,7 @@ export function useCanvasGestures({
     pinchRef.current = null;
   }
 
-  function tryBeginPinch(touches: TouchList) {
-    if (touches.length < 2) return false;
-    const dist = touchDistance(touches);
+  function tryBeginPinch(dist: number) {
     if (dist < MIN_PINCH_DIST) return false;
 
     dragRef.current = null;
@@ -126,11 +127,9 @@ export function useCanvasGestures({
     return true;
   }
 
-  function applyPinch(touches: TouchList) {
+  function applyPinch(dist: number) {
     const p = pinchRef.current;
-    if (!p) return false;
-    const dist = touchDistance(touches);
-    if (dist < MIN_PINCH_DIST) return false;
+    if (!p || dist < MIN_PINCH_DIST) return false;
 
     const dims = pinchImageDimensions(p, dist);
     const next = imagesRef.current.map((img) => (img.id === p.id ? { ...img, ...dims } : img));
@@ -139,39 +138,56 @@ export function useCanvasGestures({
     return true;
   }
 
+  function activePointerDist() {
+    return pointerDistance(pointersRef.current);
+  }
+
   useEffect(() => {
     const touchTarget = touchTargetRef?.current ?? canvasRef.current;
     const canvas = canvasRef.current;
-    if (!touchTarget || !canvas) return;
+    if (!enabled || !touchTarget || !canvas) return;
 
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length >= 2) {
-        if (e.cancelable) e.preventDefault();
-        tryBeginPinch(e.touches);
-        return;
-      }
-      if (e.touches.length === 1) {
+    const onPointerDown = (e: PointerEvent) => {
+      touchTarget.setPointerCapture(e.pointerId);
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pointersRef.current.size === 1) {
         pinchRef.current = null;
-        beginDrag(e.touches[0].clientX, e.touches[0].clientY);
+        beginDrag(e.clientX, e.clientY);
+      } else if (pointersRef.current.size >= 2) {
+        tryBeginPinch(activePointerDist());
       }
+
+      if (e.pointerType !== "mouse" && e.cancelable) e.preventDefault();
     };
 
-    const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length >= 2) {
+    const onPointerMove = (e: PointerEvent) => {
+      if (!pointersRef.current.has(e.pointerId)) return;
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pointersRef.current.size >= 2) {
+        const dist = activePointerDist();
+        if (!pinchRef.current) tryBeginPinch(dist);
+        else applyPinch(dist);
         if (e.cancelable) e.preventDefault();
-        if (!pinchRef.current) tryBeginPinch(e.touches);
-        else applyPinch(e.touches);
         return;
       }
-      if (dragRef.current && e.touches.length === 1) {
-        if (e.cancelable) e.preventDefault();
-        moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+
+      if (dragRef.current && pointersRef.current.size === 1) {
+        moveDrag(e.clientX, e.clientY);
+        if (e.pointerType !== "mouse" && e.cancelable) e.preventDefault();
       }
     };
 
-    const onTouchEnd = (e: TouchEvent) => {
-      if (e.touches.length < 2) endPinch();
-      if (e.touches.length === 0) endDrag();
+    const onPointerUp = (e: PointerEvent) => {
+      pointersRef.current.delete(e.pointerId);
+      try {
+        touchTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // already released
+      }
+      if (pointersRef.current.size < 2) endPinch();
+      if (pointersRef.current.size === 0) endDrag();
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -191,20 +207,23 @@ export function useCanvasGestures({
       redrawContent(next, textLinesRef.current, tagColorRef.current);
     };
 
-    touchTarget.addEventListener("touchstart", onTouchStart, { passive: false });
-    touchTarget.addEventListener("touchmove", onTouchMove, { passive: false });
-    touchTarget.addEventListener("touchend", onTouchEnd);
-    touchTarget.addEventListener("touchcancel", onTouchEnd);
+    touchTarget.addEventListener("pointerdown", onPointerDown);
+    touchTarget.addEventListener("pointermove", onPointerMove);
+    touchTarget.addEventListener("pointerup", onPointerUp);
+    touchTarget.addEventListener("pointercancel", onPointerUp);
     canvas.addEventListener("wheel", onWheel, { passive: false });
 
     return () => {
-      touchTarget.removeEventListener("touchstart", onTouchStart);
-      touchTarget.removeEventListener("touchmove", onTouchMove);
-      touchTarget.removeEventListener("touchend", onTouchEnd);
-      touchTarget.removeEventListener("touchcancel", onTouchEnd);
+      pointersRef.current.clear();
+      pinchRef.current = null;
+      dragRef.current = null;
+      touchTarget.removeEventListener("pointerdown", onPointerDown);
+      touchTarget.removeEventListener("pointermove", onPointerMove);
+      touchTarget.removeEventListener("pointerup", onPointerUp);
+      touchTarget.removeEventListener("pointercancel", onPointerUp);
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [canvasRef, touchTargetRef, redrawContent, onImagesChange, onTextLinesChange, onSelectText]);
+  }, [enabled, canvasRef, touchTargetRef, redrawContent, onImagesChange, onTextLinesChange, onSelectText]);
 
   return {
     beginDrag,

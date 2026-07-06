@@ -1,5 +1,11 @@
 import type { DesignImage } from "@/lib/design";
 
+export function pointerDistance(pointers: Map<number, { x: number; y: number }>): number {
+  const pts = [...pointers.values()];
+  if (pts.length < 2) return 0;
+  return Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+}
+
 export function touchDistance(touches: TouchList | React.TouchList): number {
   if (touches.length < 2) return 0;
   const dx = touches[1].clientX - touches[0].clientX;

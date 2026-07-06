@@ -66,9 +66,10 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
     if (ready) redrawContent();
   }, [tagColor, images, textLines, ready, redrawContent]);
 
-  const { beginDrag, moveDrag, endDrag } = useCanvasGestures({
+  useCanvasGestures({
     canvasRef: contentCanvasRef,
     touchTargetRef: previewStackRef,
+    enabled: ready,
     imagesRef,
     textLinesRef,
     selectedBgIdRef,
@@ -132,10 +133,7 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
                 width={CANVAS_W}
                 height={CANVAS_H}
                 className="preview-content"
-                onMouseDown={(e) => beginDrag(e.clientX, e.clientY)}
-                onMouseMove={(e) => e.buttons === 1 && moveDrag(e.clientX, e.clientY)}
-                onMouseUp={endDrag}
-                onMouseLeave={endDrag}
+                style={{ touchAction: "none" }}
               />
               <canvas ref={borderCanvasRef} width={CANVAS_W} height={CANVAS_H} className="preview-border" aria-hidden="true" />
             </div>
