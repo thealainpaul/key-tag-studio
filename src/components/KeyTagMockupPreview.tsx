@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import { CANVAS_H, CANVAS_W, getTagMetrics } from "@/lib/keytag-shape";
-import { MOCKUP_ART_PIXELS, MOCKUP_PHOTO, MOCKUP_ROTATE_RAD } from "@/lib/mockup-layout";
+import {
+  MOCKUP_ART_PIXELS,
+  MOCKUP_CANVAS_PAD_BOTTOM,
+  MOCKUP_PHOTO,
+  MOCKUP_PHOTO_OFFSET_Y,
+  MOCKUP_ROTATE_RAD,
+} from "@/lib/mockup-layout";
 
 type Props = {
   contentCanvasRef: RefObject<HTMLCanvasElement | null>;
@@ -36,19 +42,23 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
     if (!output || !content || !photo || !photoReadyRef.current) return;
 
     const { width: pw, height: ph } = MOCKUP_PHOTO;
+    const padBottom = MOCKUP_CANVAS_PAD_BOTTOM;
+    const photoDy = MOCKUP_PHOTO_OFFSET_Y;
+
     output.width = pw;
-    output.height = ph;
+    output.height = ph + padBottom;
 
     const ctx = output.getContext("2d");
     if (!ctx) return;
 
     const { x, y, w, h } = MOCKUP_ART_PIXELS;
 
-    ctx.clearRect(0, 0, pw, ph);
-    ctx.drawImage(photo, 0, 0, pw, ph);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, output.width, output.height);
+    ctx.drawImage(photo, 0, photoDy, pw, ph);
 
     ctx.save();
-    ctx.translate(x + w, y + h);
+    ctx.translate(x + w, y + h + photoDy);
     ctx.rotate(MOCKUP_ROTATE_RAD);
     ctx.translate(-w, -h);
     ctx.scale(w / CANVAS_W, h / CANVAS_H);

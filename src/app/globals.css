@@ -129,13 +129,16 @@ button, input, select, textarea { font: inherit; }
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
+  background: #000;
+  border-radius: 6px;
+  overflow: hidden;
 }
 
 .tag-mockup-canvas {
   width: 100%;
   height: auto;
   display: block;
-  border-radius: 6px;
+  margin: 0 auto;
   background: #000;
 }
 
