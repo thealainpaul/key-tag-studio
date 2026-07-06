@@ -5,16 +5,10 @@ export const MOCKUP_PHOTO = {
   height: 266,
 };
 
-/**
- * Full recess (pic + QR) measured on keytag-mockup-top.png, plus 2px bleed.
- * Green calibration: tl 332,79 → br 813,263; left edge slopes ~16px right at bottom.
- */
+/** Full recess (pic + QR). Right edge fixed at 813px; nudged left/up per screenshot. */
 export const MOCKUP_ART_PIXELS = {
-  x: 330,
+  x: 328,
   y: 77,
   w: 485,
-  h: 190,
+  h: 184,
 };
-
-/** Tiny skew so the left edge tilts down to match the photo recess. */
-export const MOCKUP_LEFT_SKEW = 0.042;
