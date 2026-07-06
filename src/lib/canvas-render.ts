@@ -2,6 +2,10 @@ import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
 import { CANVAS_H, CANVAS_W, drawKeyTagBorder, drawKeyTagFill, getTagMetrics, PRINT_DPI } from "@/lib/keytag-shape";
 import { embedPngDpi } from "@/lib/png-dpi";
 
+/** Enough for print (tag is ~2173px wide) without huge phone-photo payloads. */
+const SUBMIT_IMAGE_MAX_PX = 2560;
+const SUBMIT_JPEG_QUALITY = 0.9;
+
 export function preloadImage(url: string, cache: Map<string, HTMLImageElement>) {
   const existing = cache.get(url);
   if (existing?.complete) return Promise.resolve(existing);
@@ -79,16 +83,35 @@ export function drawBorderLayer(canvas: HTMLCanvasElement) {
 
 export function mergedPreviewDataUrl(
   contentCanvas: HTMLCanvasElement,
-  borderCanvas: HTMLCanvasElement
+  borderCanvas: HTMLCanvasElement,
+  mime: "image/png" | "image/jpeg" = "image/png"
 ): string {
   const merged = document.createElement("canvas");
   merged.width = CANVAS_W;
   merged.height = CANVAS_H;
   const ctx = merged.getContext("2d");
-  if (!ctx) return contentCanvas.toDataURL("image/png");
+  if (!ctx) return contentCanvas.toDataURL(mime, SUBMIT_JPEG_QUALITY);
   ctx.drawImage(contentCanvas, 0, 0);
   ctx.drawImage(borderCanvas, 0, 0);
-  return merged.toDataURL("image/png");
+  return merged.toDataURL(mime, SUBMIT_JPEG_QUALITY);
+}
+
+function scaledDimensions(w: number, h: number, maxPx: number) {
+  if (Math.max(w, h) <= maxPx) return { width: w, height: h };
+  const scale = maxPx / Math.max(w, h);
+  return { width: Math.round(w * scale), height: Math.round(h * scale) };
+}
+
+export async function imageUrlToDataUrl(url: string, cache: Map<string, HTMLImageElement>): Promise<string> {
+  const img = await preloadImage(url, cache);
+  const { width, height } = scaledDimensions(img.naturalWidth, img.naturalHeight, SUBMIT_IMAGE_MAX_PX);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return url;
+  ctx.drawImage(img, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", SUBMIT_JPEG_QUALITY);
 }
 
 /** Production print file — tag artwork only, no red guide border, 1200 DPI tagged. */
@@ -131,18 +154,6 @@ export function downloadDataUrl(dataUrl: string, filename: string) {
   link.href = dataUrl;
   link.download = filename;
   link.click();
-}
-
-export async function imageUrlToDataUrl(url: string, cache: Map<string, HTMLImageElement>): Promise<string> {
-  if (url.startsWith("data:")) return url;
-  const img = await preloadImage(url, cache);
-  const canvas = document.createElement("canvas");
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return url;
-  ctx.drawImage(img, 0, 0);
-  return canvas.toDataURL("image/png");
 }
 
 export async function payloadForSubmit(

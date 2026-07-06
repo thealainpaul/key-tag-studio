@@ -196,18 +196,27 @@ export default function DesignerApp() {
     const canvas = contentCanvasRef.current;
     const border = borderCanvasRef.current;
     if (!canvas || !border) return;
+    if (images.length === 0) {
+      setMessage("Please add an image before submitting.");
+      return;
+    }
 
-    const previewDataUrl = mergedPreviewDataUrl(canvas, border);
-    const raw: DesignPayload = { tagColor, images, textLines, backgroundImageId: selectedBgId, fitMode };
-    const payload = await payloadForSubmit(raw, imageCache.current);
+    setMessage("Submitting…");
+    try {
+      const previewDataUrl = mergedPreviewDataUrl(canvas, border, "image/jpeg");
+      const raw: DesignPayload = { tagColor, images, textLines, backgroundImageId: selectedBgId, fitMode };
+      const payload = await payloadForSubmit(raw, imageCache.current);
 
-    const res = await fetch("/api/designs/submit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tagColor, designJson: payload, previewDataUrl }),
-    });
-    const data = await res.json();
-    setMessage(data.success ? "Submitted!" : data.error || "Submit failed");
+      const res = await fetch("/api/designs/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tagColor, designJson: payload, previewDataUrl }),
+      });
+      const data = await res.json();
+      setMessage(data.success ? "Submitted!" : data.error || "Submit failed");
+    } catch {
+      setMessage("Submit failed — try a smaller photo or use Wi‑Fi.");
+    }
   }
 
   function updateLine(id: string, patch: Partial<TextLine>) {
