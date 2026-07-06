@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
+import { fitCoverInFrame } from "@/lib/design";
 import {
   drawBorderLayer,
   drawContentLayer,
   downloadBlob,
   mergedPreviewDataUrl,
   preloadAllImages,
+  preloadImage,
   printFileBlob,
 } from "@/lib/canvas-render";
 import { scaleImageUniform } from "@/lib/canvas-gestures";
@@ -21,18 +23,29 @@ type Props = {
   initialStatus: string;
 };
 
+function imagesWithFullSource(images: DesignImage[]): DesignImage[] {
+  return images.map((img) => ({
+    ...img,
+    url: img.originalUrl || img.url,
+  }));
+}
+
 export default function AdminDesignEditor({ designId, initialPayload, initialStatus }: Props) {
   const contentCanvasRef = useRef<HTMLCanvasElement>(null);
   const borderCanvasRef = useRef<HTMLCanvasElement>(null);
   const previewStackRef = useRef<HTMLDivElement>(null);
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
-  const imagesRef = useRef<DesignImage[]>(initialPayload.images);
+  const initialImages = useMemo(
+    () => imagesWithFullSource(initialPayload.images),
+    [initialPayload]
+  );
+  const imagesRef = useRef<DesignImage[]>(initialImages);
   const textLinesRef = useRef<TextLine[]>(initialPayload.textLines);
   const selectedBgIdRef = useRef<string | null>(initialPayload.backgroundImageId);
   const tagColorRef = useRef(initialPayload.tagColor);
 
   const [tagColor, setTagColor] = useState(initialPayload.tagColor);
-  const [images, setImages] = useState<DesignImage[]>(initialPayload.images);
+  const [images, setImages] = useState<DesignImage[]>(initialImages);
   const [textLines, setTextLines] = useState<TextLine[]>(initialPayload.textLines);
   const [selectedBgId, setSelectedBgId] = useState<string | null>(initialPayload.backgroundImageId);
   const [message, setMessage] = useState("");
@@ -54,7 +67,7 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
 
   useEffect(() => {
     (async () => {
-      await preloadAllImages(initialPayload.images, imageCache.current);
+      await preloadAllImages(initialImages, imageCache.current);
       setReady(true);
       const border = borderCanvasRef.current;
       if (border) drawBorderLayer(border);
@@ -83,6 +96,20 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
     const id = selectedBgId || images[0]?.id;
     if (!id) return;
     setImages((prev) => prev.map((img) => (img.id === id ? scaleImageUniform(img, factor) : img)));
+  }
+
+  async function restoreFullUpload() {
+    const id = selectedBgId || images[0]?.id;
+    const img = images.find((i) => i.id === id);
+    if (!img) return;
+    const source = img.originalUrl || img.url;
+    const el = await preloadImage(source, imageCache.current);
+    const placement = fitCoverInFrame(el.naturalWidth, el.naturalHeight);
+    setImages((prev) =>
+      prev.map((i) =>
+        i.id === id ? { ...i, url: source, originalUrl: source, ...placement } : i
+      )
+    );
   }
 
   function currentPayload(): DesignPayload {
@@ -122,7 +149,8 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
       <div className="card">
         <p className="muted" style={{ marginTop: 0 }}>
           Status: {initialStatus}
-          {initialPayload.fitMode === "auto" && " · Customer chose auto-fit — adjust image before printing."}
+          {initialPayload.fitMode === "auto" &&
+            " · Full upload is saved — use − to zoom out and show more of the photo."}
         </p>
 
         <div className="preview-panel" style={{ marginBottom: "1rem" }}>
@@ -148,6 +176,13 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
                 <span className="muted">Image size</span>
                 <button type="button" className="btn secondary compact" onClick={() => scaleActiveImage(1.1)} aria-label="Larger">+</button>
               </div>
+              {initialPayload.fitMode === "auto" && images.some((i) => i.originalUrl) && (
+                <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
+                  <button type="button" className="btn secondary compact" onClick={restoreFullUpload}>
+                    Reset to full upload
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>

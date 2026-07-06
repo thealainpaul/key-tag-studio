@@ -150,10 +150,11 @@ export async function payloadForSubmit(
   cache: Map<string, HTMLImageElement>
 ): Promise<DesignPayload> {
   const images = await Promise.all(
-    payload.images.map(async (img) => ({
-      ...img,
-      url: await imageUrlToDataUrl(img.url, cache),
-    }))
+    payload.images.map(async (img) => {
+      const source = img.originalUrl || img.url;
+      const full = await imageUrlToDataUrl(source, cache);
+      return { ...img, url: full, originalUrl: full };
+    })
   );
   return { ...payload, images };
 }

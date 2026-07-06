@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
-import { fitWidthInFrame, naturalCenterPlacement } from "@/lib/design";
+import { fitCoverInFrame, fitWidthInFrame } from "@/lib/design";
 import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
 import { AI_SLOT_CONFIG } from "@/lib/ai-providers";
 import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
@@ -104,6 +104,28 @@ export default function DesignerApp() {
     setImages((prev) => prev.map((img) => (img.id === id ? scaleImageUniform(img, factor) : img)));
   }
 
+  function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function addUploadedImage(dataUrl: string, naturalW: number, naturalH: number) {
+    const placement = fitCoverInFrame(naturalW, naturalH);
+    const img: DesignImage = {
+      id: uid(),
+      url: dataUrl,
+      originalUrl: dataUrl,
+      ...placement,
+      rotation: 0,
+    };
+    setImages((prev) => [...prev, img]);
+    setSelectedBgId(img.id);
+  }
+
   async function addAiImage(url: string) {
     const image = await preloadImage(url, imageCache.current);
     const placement = fitWidthInFrame(image.naturalWidth, image.naturalHeight);
@@ -112,17 +134,10 @@ export default function DesignerApp() {
     setSelectedBgId(img.id);
   }
 
-  async function addImageAtNaturalSize(url: string) {
-    const image = await preloadImage(url, imageCache.current);
-    const placement = naturalCenterPlacement(image.naturalWidth, image.naturalHeight);
-    const img: DesignImage = { id: uid(), url, ...placement, rotation: 0 };
-    setImages((prev) => [...prev, img]);
-    setSelectedBgId(img.id);
-  }
-
   async function onUpload(file: File) {
-    const url = URL.createObjectURL(file);
-    await addImageAtNaturalSize(url);
+    const dataUrl = await fileToDataUrl(file);
+    const image = await preloadImage(dataUrl, imageCache.current);
+    await addUploadedImage(dataUrl, image.naturalWidth, image.naturalHeight);
     setFitMode("auto");
   }
 

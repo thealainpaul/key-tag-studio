@@ -12,6 +12,8 @@ export type TextLine = {
 export type DesignImage = {
   id: string;
   url: string;
+  /** Full uncropped upload — kept for admin when customer chose auto-fit. */
+  originalUrl?: string;
   x: number;
   y: number;
   width: number;
@@ -67,6 +69,19 @@ export function naturalCenterPlacement(naturalW: number, naturalH: number) {
     y: (CANVAS_H - naturalH) / 2,
     width: naturalW,
     height: naturalH,
+  };
+}
+
+/** Scale uniformly to cover the frame — edges clip, full image kept for admin. */
+export function fitCoverInFrame(naturalW: number, naturalH: number) {
+  const scale = Math.max(CANVAS_W / naturalW, CANVAS_H / naturalH);
+  const width = naturalW * scale;
+  const height = naturalH * scale;
+  return {
+    x: (CANVAS_W - width) / 2,
+    y: (CANVAS_H - height) / 2,
+    width,
+    height,
   };
 }
 
