@@ -14,7 +14,7 @@ export const MOCKUP_CANVAS_PAD_BOTTOM = 10;
 /** Full recess (pic + QR) on the product photo. */
 export const MOCKUP_ART_PIXELS = {
   x: 325,
-  y: 79,
+  y: 75,
   w: 488,
   h: 192,
 };
