@@ -1,5 +1,13 @@
 import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
-import type { Point, Quad } from "@/lib/mockup-quad";
+
+export type Point = { x: number; y: number };
+
+export type Quad = {
+  tl: Point;
+  tr: Point;
+  br: Point;
+  bl: Point;
+};
 
 /** Corners of the printable trapezoid in design-canvas pixels. */
 export function getDesignQuad(canvasW = CANVAS_W, canvasH = CANVAS_H): Quad {
@@ -68,15 +76,4 @@ export function drawDesignOnPhotoQuad(
   const p = photo;
   drawTriangle(ctx, source, sw, sh, tl.x, tl.y, tr.x, tr.y, br.x, br.y, p.tl, p.tr, p.br);
   drawTriangle(ctx, source, sw, sh, tl.x, tl.y, bl.x, bl.y, br.x, br.y, p.tl, p.bl, p.br);
-}
-
-/** @deprecated use drawDesignOnPhotoQuad */
-export function drawImageInQuad(
-  ctx: CanvasRenderingContext2D,
-  source: CanvasImageSource,
-  sw: number,
-  sh: number,
-  quad: Quad
-) {
-  drawDesignOnPhotoQuad(ctx, source, sw, sh, getDesignQuad(sw, sh), quad);
 }
