@@ -18,7 +18,7 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
       setArtSrc("");
       return;
     }
-    setArtSrc(canvas.toDataURL("image/jpeg", 0.88));
+    setArtSrc(canvas.toDataURL("image/png"));
   }, [active, contentCanvasRef, revision]);
 
   if (!active || !artSrc) return null;
@@ -28,26 +28,28 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
   return (
     <div className="tag-mockup-panel">
       <p className="tag-mockup-title">How it will look on your key tag</p>
-      <div
-        className="tag-mockup-crop"
-        style={{ aspectRatio: `${MOCKUP_PHOTO.width} / ${MOCKUP_PHOTO.height * MOCKUP_PHOTO.topTagCropRatio}` }}
-      >
-        <img
-          src={MOCKUP_PHOTO.src}
-          alt="Key tag product"
-          className="tag-mockup-photo"
-          draggable={false}
-        />
+      <div className="tag-mockup-crop">
         <div
-          className="tag-mockup-art"
-          style={{
-            left: `${win.left * 100}%`,
-            top: `${win.top * 100}%`,
-            width: `${win.width * 100}%`,
-            height: `${win.height * 100}%`,
-          }}
+          className="tag-mockup-viewport"
+          style={{ paddingBottom: `${MOCKUP_PHOTO.viewportPaddingPercent}%` }}
         >
-          <img src={artSrc} alt="Your design on the tag" className="tag-mockup-art-img" draggable={false} />
+          <img
+            src={MOCKUP_PHOTO.src}
+            alt="Key tag product"
+            className="tag-mockup-photo"
+            draggable={false}
+          />
+          <div
+            className="tag-mockup-art"
+            style={{
+              left: `${win.left * 100}%`,
+              top: `${win.top * 100}%`,
+              width: `${win.width * 100}%`,
+              height: `${win.height * 100}%`,
+            }}
+          >
+            <img src={artSrc} alt="Your design on the tag" className="tag-mockup-art-img" draggable={false} />
+          </div>
         </div>
       </div>
     </div>

@@ -126,16 +126,23 @@ button, input, select, textarea { font: inherit; }
 }
 
 .tag-mockup-crop {
-  position: relative;
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
+}
+
+.tag-mockup-viewport {
+  position: relative;
+  width: 100%;
   overflow: hidden;
   border-radius: 6px;
-  background: #000;
+  background: #0a0a0a;
 }
 
 .tag-mockup-photo {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: auto;
   display: block;
@@ -146,14 +153,15 @@ button, input, select, textarea { font: inherit; }
 .tag-mockup-art {
   position: absolute;
   overflow: hidden;
-  border-radius: 2px;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+  border-radius: 1px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 .tag-mockup-art-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   display: block;
   pointer-events: none;
 }

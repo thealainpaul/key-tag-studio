@@ -1,15 +1,16 @@
-/** Photo: 1024×683 — two tags stacked; we crop to the top tag only. */
+/** Photo: 1024×683 — two tags stacked; viewport shows top tag only. */
 export const MOCKUP_PHOTO = {
   src: "/keytag-product-mockup.png",
   width: 1024,
   height: 683,
-  topTagCropRatio: 0.5,
+  /** padding-bottom % for top-tag viewport (341.5 / 1024). */
+  viewportPaddingPercent: 33.3984375,
 };
 
-/** Custom art window on the top tag (fractions of the cropped view). */
+/** Image window on top tag — left of the QR (fractions of the viewport). */
 export const MOCKUP_ART_WINDOW = {
-  left: 0.039,
-  top: 0.278,
-  width: 0.528,
-  height: 0.41,
+  left: 0.044,
+  top: 0.285,
+  width: 0.335,
+  height: 0.395,
 };
