@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
-import { MOCKUP_ART_WINDOW, MOCKUP_CLIP_PATH, MOCKUP_PHOTO } from "@/lib/mockup-layout";
+import { useEffect, useRef, type RefObject } from "react";
+import { CANVAS_H, CANVAS_W, getTagMetrics } from "@/lib/keytag-shape";
+import { MOCKUP_ART_PIXELS, MOCKUP_PHOTO } from "@/lib/mockup-layout";
 
 type Props = {
   contentCanvasRef: RefObject<HTMLCanvasElement | null>;
@@ -10,48 +11,65 @@ type Props = {
 };
 
 export default function KeyTagMockupPreview({ contentCanvasRef, active, revision }: Props) {
-  const [artSrc, setArtSrc] = useState("");
+  const outputRef = useRef<HTMLCanvasElement>(null);
+  const photoRef = useRef<HTMLImageElement | null>(null);
+  const photoReadyRef = useRef(false);
 
   useEffect(() => {
-    const canvas = contentCanvasRef.current;
-    if (!active || !canvas) {
-      setArtSrc("");
-      return;
-    }
-    setArtSrc(canvas.toDataURL("image/png"));
+    const img = new Image();
+    img.onload = () => {
+      photoRef.current = img;
+      photoReadyRef.current = true;
+      if (active) paint();
+    };
+    img.src = MOCKUP_PHOTO.src;
+    return () => {
+      photoReadyRef.current = false;
+      photoRef.current = null;
+    };
+  }, [active]);
+
+  function paint() {
+    const output = outputRef.current;
+    const content = contentCanvasRef.current;
+    const photo = photoRef.current;
+    if (!output || !content || !photo || !photoReadyRef.current) return;
+
+    const { width: pw, height: ph } = MOCKUP_PHOTO;
+    output.width = pw;
+    output.height = ph;
+
+    const ctx = output.getContext("2d");
+    if (!ctx) return;
+
+    const { x, y, w, h } = MOCKUP_ART_PIXELS;
+
+    ctx.clearRect(0, 0, pw, ph);
+    ctx.drawImage(photo, 0, 0, pw, ph);
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(w / CANVAS_W, h / CANVAS_H);
+
+    const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
+    metrics.drawGeometry(ctx);
+    ctx.clip();
+    ctx.drawImage(content, 0, 0);
+    ctx.restore();
+  }
+
+  useEffect(() => {
+    if (!active) return;
+    paint();
   }, [active, contentCanvasRef, revision]);
 
-  if (!active || !artSrc) return null;
-
-  const win = MOCKUP_ART_WINDOW;
+  if (!active) return null;
 
   return (
     <div className="tag-mockup-panel">
       <p className="tag-mockup-title">How it will look on your key tag</p>
       <div className="tag-mockup-crop">
-        <div
-          className="tag-mockup-viewport"
-          style={{ aspectRatio: `${MOCKUP_PHOTO.width} / ${MOCKUP_PHOTO.height}` }}
-        >
-          <img
-            src={MOCKUP_PHOTO.src}
-            alt="Key tag product"
-            className="tag-mockup-photo"
-            draggable={false}
-          />
-          <div
-            className="tag-mockup-art"
-            style={{
-              left: `${win.left * 100}%`,
-              top: `${win.top * 100}%`,
-              width: `${win.width * 100}%`,
-              height: `${win.height * 100}%`,
-              clipPath: MOCKUP_CLIP_PATH,
-            }}
-          >
-            <img src={artSrc} alt="Your design on the tag" className="tag-mockup-art-img" draggable={false} />
-          </div>
-        </div>
+        <canvas ref={outputRef} className="tag-mockup-canvas" width={MOCKUP_PHOTO.width} height={MOCKUP_PHOTO.height} />
       </div>
     </div>
   );

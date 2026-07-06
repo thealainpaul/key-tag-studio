@@ -6,17 +6,12 @@ export const MOCKUP_PHOTO = {
 };
 
 /**
- * Recessed print area on the product photo (left of QR), as fractions of photo size.
- * Measured from keytag-mockup-top.png pixels:
- *   left ≈ 337px, top ≈ 107px, right ≈ 632px (QR edge), bottom ≈ 253px
+ * Recessed print area on the photo, in pixels (left of QR).
+ * Verified with public/mockup-calibration.png red-box overlay.
  */
-export const MOCKUP_ART_WINDOW = {
-  left: 337 / 1024,
-  top: 107 / 266,
-  width: (632 - 337) / 1024,
-  height: (253 - 107) / 266,
+export const MOCKUP_ART_PIXELS = {
+  x: 343,
+  y: 105,
+  w: 636 - 343,
+  h: 255 - 105,
 };
-
-/** Trapezoid clip matching the key-tag print shape (46 mm × 19.9 mm, 14 mm left height). */
-const leftInset = ((19.9 - 14) / 2 / 19.9) * 100;
-export const MOCKUP_CLIP_PATH = `polygon(0% ${leftInset}%, 100% 0%, 100% 100%, 0% ${100 - leftInset}%)`;
