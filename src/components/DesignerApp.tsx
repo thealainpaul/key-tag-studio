@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
 import { fitWidthInFrame, naturalCenterPlacement } from "@/lib/design";
 import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
+import { AI_SLOT_PROVIDERS } from "@/lib/ai-providers";
 import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
 import {
   drawBorderLayer,
@@ -22,7 +23,7 @@ const AI_SLOT_COUNT = 3;
 
 type AiSlot = AiSlotResult;
 
-/** Start all 3 AI requests immediately — they finish at different times naturally. */
+/** Each slot uses a different provider — no stagger needed. */
 const AI_STAGGER_MS = 0;
 
 function uid() {
@@ -295,7 +296,7 @@ export default function DesignerApp() {
             </div>
             {aiLoading && (
               <p className="muted" style={{ margin: "0.75rem 0 0", fontSize: "0.9rem" }}>
-                Your images will appear shortly — all 3 start at once and finish one by one. Please be patient.
+                Image 1 is usually fastest. Image 3 uses a free community service and may take a few minutes.
               </p>
             )}
             {aiError && <p style={{ color: "var(--danger)" }}>{aiError}</p>}
@@ -312,6 +313,7 @@ export default function DesignerApp() {
                     key={`${aiRunId}-${i}`}
                     id={aiResults[i]?.id ?? `ai-${aiRunId}-${i}`}
                     slotNumber={i + 1}
+                    provider={AI_SLOT_PROVIDERS[i]}
                     prompt={aiPrompt}
                     seed={seed}
                     waitBeforeStart={i * AI_STAGGER_MS}
