@@ -9,11 +9,11 @@ export const MOCKUP_PHOTO = {
 
 /**
  * Full recessed print area on the photo (pic + QR), as a quad in photo pixels.
- * Left edge tilts down slightly to match the tag perspective (see user screenshot).
+ * Calibrated on keytag-mockup-top.png — left edge slopes slightly right toward the bottom.
  */
 export const MOCKUP_ART_QUAD: Quad = {
-  tl: { x: 340, y: 81 },
-  tr: { x: 811, y: 80 },
-  br: { x: 813, y: 262 },
-  bl: { x: 324, y: 264 },
+  tl: { x: 333, y: 78 },
+  tr: { x: 810, y: 78 },
+  br: { x: 812, y: 264 },
+  bl: { x: 347, y: 265 },
 };

@@ -44,7 +44,7 @@ function drawTriangle(
 
   const t = affineFromTriangles(sx0, sy0, sx1, sy1, sx2, sy2, d0.x, d0.y, d1.x, d1.y, d2.x, d2.y);
   ctx.transform(t.a, t.b, t.c, t.d, t.e, t.f);
-  ctx.drawImage(source, 0, 0);
+  ctx.drawImage(source, 0, 0, sw, sh);
   ctx.restore();
 }
 
