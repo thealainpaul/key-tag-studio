@@ -4,10 +4,10 @@ import { useEffect, useRef, type RefObject } from "react";
 import { CANVAS_H, CANVAS_W, getTagMetrics } from "@/lib/keytag-shape";
 import {
   MOCKUP_ART_PIXELS,
-  MOCKUP_CANVAS_PAD_BOTTOM,
   MOCKUP_PHOTO,
-  MOCKUP_PHOTO_OFFSET_Y,
   MOCKUP_ROTATE_RAD,
+  mockupCanvasSize,
+  mockupPhotoOrigin,
 } from "@/lib/mockup-layout";
 
 type Props = {
@@ -41,12 +41,12 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
     const photo = photoRef.current;
     if (!output || !content || !photo || !photoReadyRef.current) return;
 
+    const { width: cw, height: ch } = mockupCanvasSize();
+    const { x: photoX, y: photoY } = mockupPhotoOrigin();
     const { width: pw, height: ph } = MOCKUP_PHOTO;
-    const padBottom = MOCKUP_CANVAS_PAD_BOTTOM;
-    const photoDy = MOCKUP_PHOTO_OFFSET_Y;
 
-    output.width = pw;
-    output.height = ph + padBottom;
+    output.width = cw;
+    output.height = ch;
 
     const ctx = output.getContext("2d");
     if (!ctx) return;
@@ -54,11 +54,11 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
     const { x, y, w, h } = MOCKUP_ART_PIXELS;
 
     ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, output.width, output.height);
-    ctx.drawImage(photo, 0, photoDy, pw, ph);
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.drawImage(photo, photoX, photoY, pw, ph);
 
     ctx.save();
-    ctx.translate(x + w, y + h + photoDy);
+    ctx.translate(photoX + x + w, photoY + y + h);
     ctx.rotate(MOCKUP_ROTATE_RAD);
     ctx.translate(-w, -h);
     ctx.scale(w / CANVAS_W, h / CANVAS_H);
@@ -81,7 +81,7 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
     <div className="tag-mockup-panel">
       <p className="tag-mockup-title">How it will look on your key tag</p>
       <div className="tag-mockup-crop">
-        <canvas ref={outputRef} className="tag-mockup-canvas" width={MOCKUP_PHOTO.width} height={MOCKUP_PHOTO.height} />
+        <canvas ref={outputRef} className="tag-mockup-canvas" />
       </div>
     </div>
   );
