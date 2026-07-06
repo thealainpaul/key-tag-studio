@@ -23,7 +23,9 @@ const AI_SLOT_COUNT = 3;
 
 type AiSlot = AiSlotResult;
 
+/** Tiny gap before slot 3 so two server requests do not collide. */
 const AI_STAGGER_MS = 0;
+const AI_SLOT3_DELAY_MS = 2500;
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -295,7 +297,7 @@ export default function DesignerApp() {
             </div>
             {aiLoading && (
               <p className="muted" style={{ margin: "0.75rem 0 0", fontSize: "0.9rem" }}>
-                Images 1 and 2 start together. Image 3 starts right after image 1 is ready.
+                All 3 start generating right away — they may finish at different times.
               </p>
             )}
             {aiError && <p style={{ color: "var(--danger)" }}>{aiError}</p>}
@@ -309,9 +311,6 @@ export default function DesignerApp() {
               <div className="ai-grid">
                 {aiSeeds.map((seed, i) => {
                   const cfg = AI_SLOT_CONFIG[i];
-                  const after = cfg.startsAfterSlot;
-                  const slotActive =
-                    aiLoading && (after === undefined || aiResults[after]?.status === "ok");
                   return (
                   <AiImageSlot
                     key={`${aiRunId}-${i}`}
@@ -321,9 +320,8 @@ export default function DesignerApp() {
                     model={cfg.model}
                     prompt={aiPrompt}
                     seed={seed}
-                    waitBeforeStart={i * AI_STAGGER_MS}
-                    active={slotActive}
-                    waitingForPrerequisite={aiLoading && after !== undefined && aiResults[after]?.status !== "ok"}
+                    waitBeforeStart={i === 2 ? AI_SLOT3_DELAY_MS : i * AI_STAGGER_MS}
+                    active={aiLoading}
                     onUpdate={(slot) => {
                       setAiResults((prev) => {
                         const next = [...prev];

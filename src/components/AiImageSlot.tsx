@@ -20,7 +20,6 @@ type Props = {
   seed: number;
   waitBeforeStart: number;
   active: boolean;
-  waitingForPrerequisite?: boolean;
   onUpdate: (slot: AiSlotResult) => void;
   onPick: (url: string) => void;
 };
@@ -38,7 +37,6 @@ export default function AiImageSlot({
   seed,
   waitBeforeStart,
   active,
-  waitingForPrerequisite,
   onUpdate,
   onPick,
 }: Props) {
@@ -169,10 +167,7 @@ export default function AiImageSlot({
   }
 
   const isOk = !!readyUrl;
-  const loadingMsg =
-    slotNumber
-      ? slotLoadingHint(slotNumber, !!waitingForPrerequisite)
-      : "Generating…";
+  const loadingMsg = slotNumber ? slotLoadingHint(slotNumber) : "Generating…";
 
   return (
     <div className={`ai-slot ai-slot-${isOk ? "ok" : "loading"}`}>
