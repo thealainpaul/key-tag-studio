@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type RefObject } from "react";
-import { MOCKUP_ART_WINDOW, MOCKUP_PHOTO } from "@/lib/mockup-layout";
+import { MOCKUP_ART_WINDOW, MOCKUP_CLIP_PATH, MOCKUP_PHOTO } from "@/lib/mockup-layout";
 
 type Props = {
   contentCanvasRef: RefObject<HTMLCanvasElement | null>;
@@ -31,7 +31,7 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
       <div className="tag-mockup-crop">
         <div
           className="tag-mockup-viewport"
-          style={{ paddingBottom: `${MOCKUP_PHOTO.viewportPaddingPercent}%` }}
+          style={{ aspectRatio: `${MOCKUP_PHOTO.width} / ${MOCKUP_PHOTO.height}` }}
         >
           <img
             src={MOCKUP_PHOTO.src}
@@ -46,6 +46,7 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
               top: `${win.top * 100}%`,
               width: `${win.width * 100}%`,
               height: `${win.height * 100}%`,
+              clipPath: MOCKUP_CLIP_PATH,
             }}
           >
             <img src={artSrc} alt="Your design on the tag" className="tag-mockup-art-img" draggable={false} />
