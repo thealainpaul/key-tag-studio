@@ -1,11 +1,8 @@
-/**
- * Top tag photo — same crop as the working version, plus black rows at the bottom
- * so the rounded corner is not cut. Tag pixels are unchanged; only height grew.
- */
+/** Cropped photo of the top tag only (1024×324), straight from the product mockup. */
 export const MOCKUP_PHOTO = {
   src: "/keytag-mockup-top.png",
   width: 1024,
-  height: 288,
+  height: 324,
 };
 
 /** Unchanged from the working version. */
