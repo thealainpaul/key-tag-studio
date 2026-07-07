@@ -1,8 +1,8 @@
-/** Cropped photo of the top tag only (1024×324), straight from the product mockup. */
+/** Cropped photo of the top tag only (1024×284), straight from the product mockup. */
 export const MOCKUP_PHOTO = {
   src: "/keytag-mockup-top.png",
   width: 1024,
-  height: 324,
+  height: 284,
 };
 
 /** Unchanged from the working version. */
