@@ -1,0 +1,138 @@
+export type Locale = "en" | "de" | "fr" | "it";
+
+export const LOCALES: Locale[] = ["en", "de", "fr", "it"];
+
+export function parseLocale(raw: string | null | undefined): Locale {
+  const v = (raw || "").toLowerCase().slice(0, 2);
+  if (v === "de" || v === "fr" || v === "it" || v === "en") return v;
+  return "en";
+}
+
+const dict = {
+  en: {
+    admin: "Admin",
+    checkout: "Checkout",
+    checkingOut: "Saving design…",
+    needImage: "Please add an image before checkout.",
+    checkoutFailed: "Checkout failed — try a smaller photo or use Wi‑Fi.",
+    hintUpload: "Upload or create your own image with AI",
+    hintBlack: "The black space is where the image will appear",
+    hintRed: "The red frame and all outside of that is not where the image would appear",
+    hintGestures: "Drag to move · Pinch with two fingers to resize (or use − + below)",
+    imageSize: "Image size",
+    upload: "Upload (we fit it for you)",
+    generateAi: "Generate image with AI",
+    addText: "+ Text",
+    yourText: "Your text",
+    remove: "Remove",
+    aiPlaceholder: "Describe your image…",
+    aiHint:
+      "Images are wide and short to fit the tag. Tall things like guitars are created on their side so the full shape shows.",
+    aiProgress: "All 3 start generating right away — they may finish at different times.",
+    generate3: "Generate 3",
+    generating: "Generating…",
+    close: "Close",
+    smaller: "Smaller",
+    larger: "Larger",
+    tagColor: "Tag color",
+    fontSize: "Font size",
+    textColor: "Text color",
+    mockupTitle: "How it will look on your key tag.",
+  },
+  de: {
+    admin: "Admin",
+    checkout: "Zur Kasse",
+    checkingOut: "Design wird gespeichert…",
+    needImage: "Bitte zuerst ein Bild hinzufügen.",
+    checkoutFailed: "Checkout fehlgeschlagen — kleineres Foto oder WLAN versuchen.",
+    hintUpload: "Laden Sie ein Bild hoch oder erstellen Sie eines mit KI",
+    hintBlack: "Der schwarze Bereich ist die Bildfläche",
+    hintRed: "Der rote Rahmen und alles ausserhalb erscheinen nicht auf dem Anhänger",
+    hintGestures: "Ziehen zum Verschieben · Mit zwei Fingern zoomen (oder − + unten)",
+    imageSize: "Bildgrösse",
+    upload: "Hochladen (wir passen es ein)",
+    generateAi: "Bild mit KI erstellen",
+    addText: "+ Text",
+    yourText: "Ihr Text",
+    remove: "Entfernen",
+    aiPlaceholder: "Beschreiben Sie Ihr Bild…",
+    aiHint:
+      "Bilder sind breit und flach, passend zum Anhänger. Hohe Motive (z. B. Gitarren) liegen seitlich, damit alles sichtbar bleibt.",
+    aiProgress: "Alle 3 starten sofort — sie können zu unterschiedlichen Zeiten fertig sein.",
+    generate3: "3 erzeugen",
+    generating: "Wird erzeugt…",
+    close: "Schliessen",
+    smaller: "Kleiner",
+    larger: "Grösser",
+    tagColor: "Anhängerfarbe",
+    fontSize: "Schriftgrösse",
+    textColor: "Textfarbe",
+    mockupTitle: "So wirkt es auf Ihrem Schlüsselanhänger.",
+  },
+  fr: {
+    admin: "Admin",
+    checkout: "Commander",
+    checkingOut: "Enregistrement du design…",
+    needImage: "Veuillez ajouter une image avant de commander.",
+    checkoutFailed: "Échec — essayez une photo plus petite ou le Wi‑Fi.",
+    hintUpload: "Téléversez une image ou créez-en une avec l’IA",
+    hintBlack: "La zone noire est l’emplacement de l’image",
+    hintRed: "Le cadre rouge et tout l’extérieur n’apparaissent pas sur la plaquette",
+    hintGestures: "Glisser pour déplacer · Pincer pour redimensionner (ou − + ci-dessous)",
+    imageSize: "Taille de l’image",
+    upload: "Téléverser (nous l’ajustons)",
+    generateAi: "Créer une image avec l’IA",
+    addText: "+ Texte",
+    yourText: "Votre texte",
+    remove: "Supprimer",
+    aiPlaceholder: "Décrivez votre image…",
+    aiHint:
+      "Les images sont larges et basses pour la plaquette. Les sujets hauts (ex. guitares) sont couchées pour tout montrer.",
+    aiProgress: "Les 3 démarrent tout de suite — elles peuvent finir à des moments différents.",
+    generate3: "Générer 3",
+    generating: "Génération…",
+    close: "Fermer",
+    smaller: "Plus petit",
+    larger: "Plus grand",
+    tagColor: "Couleur de la plaquette",
+    fontSize: "Taille de police",
+    textColor: "Couleur du texte",
+    mockupTitle: "Rendu sur votre plaquette.",
+  },
+  it: {
+    admin: "Admin",
+    checkout: "Vai alla cassa",
+    checkingOut: "Salvataggio del design…",
+    needImage: "Aggiungi un’immagine prima di procedere.",
+    checkoutFailed: "Errore — prova una foto più piccola o il Wi‑Fi.",
+    hintUpload: "Carica un’immagine o creane una con l’IA",
+    hintBlack: "Lo spazio nero è dove compare l’immagine",
+    hintRed: "La cornice rossa e tutto ciò che è fuori non compaiono sul tag",
+    hintGestures: "Trascina per spostare · Pizzica per ridimensionare (o − + sotto)",
+    imageSize: "Dimensione immagine",
+    upload: "Carica (la adattiamo noi)",
+    generateAi: "Genera immagine con IA",
+    addText: "+ Testo",
+    yourText: "Il tuo testo",
+    remove: "Rimuovi",
+    aiPlaceholder: "Descrivi la tua immagine…",
+    aiHint:
+      "Le immagini sono larghe e basse per il tag. Soggetti alti (es. chitarre) sono di lato per mostrarli interi.",
+    aiProgress: "Tutte e 3 partono subito — possono finire in momenti diversi.",
+    generate3: "Genera 3",
+    generating: "Generazione…",
+    close: "Chiudi",
+    smaller: "Più piccolo",
+    larger: "Più grande",
+    tagColor: "Colore del tag",
+    fontSize: "Dimensione font",
+    textColor: "Colore testo",
+    mockupTitle: "Come apparirà sul tuo portachiavi.",
+  },
+} as const;
+
+export type Dict = (typeof dict)[Locale];
+
+export function t(locale: Locale): Dict {
+  return dict[locale] || dict.en;
+}

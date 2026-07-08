@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
 import { fitCoverInFrame, fitWidthInFrame } from "@/lib/design";
 import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
@@ -18,6 +19,7 @@ import {
 import { scaleImageUniform } from "@/lib/canvas-gestures";
 import { useCanvasGestures } from "@/hooks/useCanvasGestures";
 import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
+import { parseLocale, t } from "@/lib/i18n";
 
 const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
 const AI_SLOT_COUNT = 3;
@@ -33,6 +35,11 @@ function uid() {
 }
 
 export default function DesignerApp() {
+  const searchParams = useSearchParams();
+  const locale = useMemo(() => parseLocale(searchParams.get("lang")), [searchParams]);
+  const labels = t(locale);
+  const embed = searchParams.get("embed") === "1";
+  const cartReturn = searchParams.get("cart_return") || "";
   const contentCanvasRef = useRef<HTMLCanvasElement>(null);
   const borderCanvasRef = useRef<HTMLCanvasElement>(null);
   const previewStackRef = useRef<HTMLDivElement>(null);
@@ -200,11 +207,11 @@ export default function DesignerApp() {
     const border = borderCanvasRef.current;
     if (!canvas || !border) return;
     if (images.length === 0) {
-      setMessage("Please add an image before submitting.");
+      setMessage(labels.needImage);
       return;
     }
 
-    setMessage("Submitting…");
+    setMessage(labels.checkingOut);
     try {
       const previewDataUrl = mergedPreviewDataUrl(canvas, border, "image/jpeg");
       const raw: DesignPayload = { tagColor, images, textLines, backgroundImageId: selectedBgId, fitMode };
@@ -213,12 +220,28 @@ export default function DesignerApp() {
       const res = await fetch("/api/designs/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tagColor, designJson: payload, previewDataUrl }),
+        body: JSON.stringify({
+          tagColor,
+          designJson: payload,
+          previewDataUrl,
+          locale,
+        }),
       });
       const data = await res.json();
-      setMessage(data.success ? "Submitted!" : data.error || "Submit failed");
+      if (!data.success || !data.id) {
+        setMessage(data.error || labels.checkoutFailed);
+        return;
+      }
+
+      if (cartReturn) {
+        const base = cartReturn.includes("?") ? `${cartReturn}&` : `${cartReturn}?`;
+        window.top!.location.href = `${base}bik_ckt_design=${encodeURIComponent(data.id)}`;
+        return;
+      }
+
+      setMessage(`${labels.checkout} OK (${data.id})`);
     } catch {
-      setMessage("Submit failed — try a smaller photo or use Wi‑Fi.");
+      setMessage(labels.checkoutFailed);
     }
   }
 
@@ -227,10 +250,16 @@ export default function DesignerApp() {
   }
 
   return (
-    <div className="designer-page">
+    <div className={`designer-page${embed ? " embed" : ""}`}>
       <div className="designer-nav">
-        <Link href="/admin/login" className="muted" style={{ fontSize: "0.8rem" }}>Admin</Link>
-        <button className="btn compact" onClick={submitDesign}>Submit</button>
+        {!embed && (
+          <Link href="/admin/login" className="muted" style={{ fontSize: "0.8rem" }}>
+            {labels.admin}
+          </Link>
+        )}
+        <button className="btn compact" onClick={submitDesign}>
+          {labels.checkout}
+        </button>
       </div>
 
       <div className="preview-panel">
@@ -248,24 +277,27 @@ export default function DesignerApp() {
           </div>
         </div>
         <div className="preview-hints">
-          <p>Upload or create your own image with AI</p>
-          <p>The black space is where the image will appear</p>
-          <p>The red frame and all outside of that is not where the image would appear</p>
-          {images.length > 0 && (
-            <p>Drag to move · Pinch with two fingers to resize (or use − + below)</p>
-          )}
+          <p>{labels.hintUpload}</p>
+          <p>{labels.hintBlack}</p>
+          <p>{labels.hintRed}</p>
+          {images.length > 0 && <p>{labels.hintGestures}</p>}
         </div>
         {images.length > 0 && (
           <div className="image-scale-bar">
-            <button type="button" className="btn secondary compact" onClick={() => scaleActiveImage(0.9)} aria-label="Smaller">−</button>
-            <span className="muted">Image size</span>
-            <button type="button" className="btn secondary compact" onClick={() => scaleActiveImage(1.1)} aria-label="Larger">+</button>
+            <button type="button" className="btn secondary compact" onClick={() => scaleActiveImage(0.9)} aria-label={labels.smaller}>
+              −
+            </button>
+            <span className="muted">{labels.imageSize}</span>
+            <button type="button" className="btn secondary compact" onClick={() => scaleActiveImage(1.1)} aria-label={labels.larger}>
+              +
+            </button>
           </div>
         )}
         <KeyTagMockupPreview
           contentCanvasRef={contentCanvasRef}
           active={images.length > 0}
           revision={mockupRevision}
+          title={labels.mockupTitle}
         />
       </div>
 
@@ -276,44 +308,67 @@ export default function DesignerApp() {
             className="color-input"
             value={tagColor}
             onChange={(e) => setTagColor(e.target.value)}
-            aria-label="Tag color"
+            aria-label={labels.tagColor}
           />
           <label className="btn secondary compact" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
-            Upload (we fit it for you)
+            {labels.upload}
             <input hidden type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
           </label>
-          <button className="btn secondary compact" onClick={() => setAiOpen(true)}>Generate image with AI</button>
-          <button className="btn secondary compact" onClick={addTextLine}>+ Text</button>
+          <button className="btn secondary compact" onClick={() => setAiOpen(true)}>
+            {labels.generateAi}
+          </button>
+          <button className="btn secondary compact" onClick={addTextLine}>
+            {labels.addText}
+          </button>
         </div>
 
-        {showText && textLines.map((line) => (
-          <div key={line.id} className={`text-block${selectedTextId === line.id ? " selected" : ""}`}>
-            <div className="field">
-              <input
-                value={line.text}
-                placeholder="Your text"
-                onChange={(e) => updateLine(line.id, { text: e.target.value })}
-                onFocus={() => setSelectedTextId(line.id)}
-              />
+        {showText &&
+          textLines.map((line) => (
+            <div key={line.id} className={`text-block${selectedTextId === line.id ? " selected" : ""}`}>
+              <div className="field">
+                <input
+                  value={line.text}
+                  placeholder={labels.yourText}
+                  onChange={(e) => updateLine(line.id, { text: e.target.value })}
+                  onFocus={() => setSelectedTextId(line.id)}
+                />
+              </div>
+              <div className="text-row">
+                <div className="field">
+                  <select value={line.fontFamily} onChange={(e) => updateLine(line.id, { fontFamily: e.target.value })}>
+                    {FONTS.map((f) => (
+                      <option key={f}>{f}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <input
+                    type="number"
+                    value={line.fontSize}
+                    onChange={(e) => updateLine(line.id, { fontSize: Number(e.target.value) })}
+                    aria-label={labels.fontSize}
+                  />
+                </div>
+                <div className="field">
+                  <input
+                    type="color"
+                    value={line.color}
+                    onChange={(e) => updateLine(line.id, { color: e.target.value })}
+                    aria-label={labels.textColor}
+                  />
+                </div>
+                <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
+                  <button
+                    className="btn danger compact"
+                    style={{ width: "100%" }}
+                    onClick={() => setTextLines((lines) => lines.filter((l) => l.id !== line.id))}
+                  >
+                    {labels.remove}
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="text-row">
-              <div className="field">
-                <select value={line.fontFamily} onChange={(e) => updateLine(line.id, { fontFamily: e.target.value })}>
-                  {FONTS.map((f) => <option key={f}>{f}</option>)}
-                </select>
-              </div>
-              <div className="field">
-                <input type="number" value={line.fontSize} onChange={(e) => updateLine(line.id, { fontSize: Number(e.target.value) })} aria-label="Font size" />
-              </div>
-              <div className="field">
-                <input type="color" value={line.color} onChange={(e) => updateLine(line.id, { color: e.target.value })} aria-label="Text color" />
-              </div>
-              <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
-                <button className="btn danger compact" style={{ width: "100%" }} onClick={() => setTextLines((lines) => lines.filter((l) => l.id !== line.id))}>Remove</button>
-              </div>
-            </div>
-          </div>
-        ))}
+          ))}
 
         {message && <p className="message">{message}</p>}
       </div>
@@ -322,47 +377,54 @@ export default function DesignerApp() {
         <div className="modal-backdrop" onClick={() => setAiOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="field">
-              <textarea rows={2} value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="Describe your image…" />
+              <textarea
+                rows={2}
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder={labels.aiPlaceholder}
+              />
               <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
-                Images are wide and short to fit the tag. Tall things like guitars are created on their side so the full shape shows.
+                {labels.aiHint}
               </p>
             </div>
             {aiLoading && (
               <p className="muted" style={{ margin: "0.75rem 0 0", fontSize: "0.9rem" }}>
-                All 3 start generating right away — they may finish at different times.
+                {labels.aiProgress}
               </p>
             )}
             {aiError && <p style={{ color: "var(--danger)" }}>{aiError}</p>}
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
               <button className="btn" onClick={generateAi} disabled={aiLoading || !aiPrompt.trim()}>
-                {aiLoading ? "Generating…" : "Generate 3"}
+                {aiLoading ? labels.generating : labels.generate3}
               </button>
-              <button className="btn secondary" onClick={() => setAiOpen(false)}>Close</button>
+              <button className="btn secondary" onClick={() => setAiOpen(false)}>
+                {labels.close}
+              </button>
             </div>
             {(aiLoading || aiResults.length > 0) && aiSeeds.length === AI_SLOT_COUNT && (
               <div className="ai-grid">
                 {aiSeeds.map((seed, i) => {
                   const cfg = AI_SLOT_CONFIG[i];
                   return (
-                  <AiImageSlot
-                    key={`${aiRunId}-${i}`}
-                    id={aiResults[i]?.id ?? `ai-${aiRunId}-${i}`}
-                    slotNumber={i + 1}
-                    provider={cfg.provider}
-                    model={cfg.model}
-                    prompt={aiPrompt}
-                    seed={seed}
-                    waitBeforeStart={i === 2 ? AI_SLOT3_DELAY_MS : i * AI_STAGGER_MS}
-                    active={aiLoading}
-                    onUpdate={(slot) => {
-                      setAiResults((prev) => {
-                        const next = [...prev];
-                        next[i] = slot;
-                        return next;
-                      });
-                    }}
-                    onPick={pickAiImage}
-                  />
+                    <AiImageSlot
+                      key={`${aiRunId}-${i}`}
+                      id={aiResults[i]?.id ?? `ai-${aiRunId}-${i}`}
+                      slotNumber={i + 1}
+                      provider={cfg.provider}
+                      model={cfg.model}
+                      prompt={aiPrompt}
+                      seed={seed}
+                      waitBeforeStart={i === 2 ? AI_SLOT3_DELAY_MS : i * AI_STAGGER_MS}
+                      active={aiLoading}
+                      onUpdate={(slot) => {
+                        setAiResults((prev) => {
+                          const next = [...prev];
+                          next[i] = slot;
+                          return next;
+                        });
+                      }}
+                      onPick={pickAiImage}
+                    />
                   );
                 })}
               </div>

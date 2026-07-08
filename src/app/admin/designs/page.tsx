@@ -9,6 +9,7 @@ import { downloadBlob, preloadAllImages, printFileBlob } from "@/lib/canvas-rend
 type Design = {
   id: string;
   status: string;
+  paymentStatus?: string;
   tagColor: string;
   designJson: string;
   previewDataUrl: string | null;
@@ -80,6 +81,9 @@ export default function AdminDesignsPage() {
             <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
               <div>
                 <strong>#{designs.length - i}</strong> · <span className={`status-${d.status}`}>{d.status}</span>
+                {d.paymentStatus && (
+                  <span className="muted"> · {d.paymentStatus === "paid" ? "paid" : "unpaid"}</span>
+                )}
                 {d.source === "auto_fit" && <span className="muted"> · auto-fit upload</span>}
                 <div className="muted">{new Date(d.createdAt).toLocaleString()}</div>
                 {d.rejectionReason && <div className="muted">Reason: {d.rejectionReason}</div>}

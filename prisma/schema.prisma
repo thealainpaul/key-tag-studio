@@ -17,11 +17,16 @@ model Admin {
 model Design {
   id             String   @id @default(cuid())
   status         String   @default("pending")
+  /// pending | unpaid | paid | approved | rejected
+  paymentStatus  String   @default("unpaid")
   tagColor       String   @default("#1f1f1f")
   designJson     String
   previewDataUrl String?
   rejectionReason String?
   source         String   @default("manual")
+  locale         String?
+  wooOrderId     String?
+  paidAt         DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }

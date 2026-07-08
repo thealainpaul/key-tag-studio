@@ -5,7 +5,7 @@ import type { DesignPayload } from "@/lib/design";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { tagColor, designJson, previewDataUrl } = body;
+    const { tagColor, designJson, previewDataUrl, locale } = body;
 
     if (!designJson) {
       return NextResponse.json({ success: false, error: "Design data required" }, { status: 400 });
@@ -20,7 +20,9 @@ export async function POST(req: NextRequest) {
         designJson: typeof designJson === "string" ? designJson : JSON.stringify(designJson),
         previewDataUrl: previewDataUrl || null,
         status: "pending",
+        paymentStatus: "unpaid",
         source,
+        locale: typeof locale === "string" ? locale.slice(0, 8) : null,
       },
     });
 

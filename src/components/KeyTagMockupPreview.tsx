@@ -14,9 +14,10 @@ type Props = {
   contentCanvasRef: RefObject<HTMLCanvasElement | null>;
   active: boolean;
   revision: number;
+  title?: string;
 };
 
-export default function KeyTagMockupPreview({ contentCanvasRef, active, revision }: Props) {
+export default function KeyTagMockupPreview({ contentCanvasRef, active, revision, title }: Props) {
   const outputRef = useRef<HTMLCanvasElement>(null);
   const photoRef = useRef<HTMLImageElement | null>(null);
   const photoReadyRef = useRef(false);
@@ -79,7 +80,7 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
 
   return (
     <div className="tag-mockup-panel">
-      <p className="tag-mockup-title">How it will look on your key tag</p>
+      <p className="tag-mockup-title">{title || "How it will look on your key tag"}</p>
       <div className="tag-mockup-crop">
         <canvas ref={outputRef} className="tag-mockup-canvas" />
       </div>
