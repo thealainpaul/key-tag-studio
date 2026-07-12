@@ -28,7 +28,7 @@ type AiSlot = AiSlotResult;
 
 /** Tiny gap before slot 3 so two server requests do not collide. */
 const AI_STAGGER_MS = 0;
-const AI_SLOT3_DELAY_MS = 2500;
+const AI_SLOT3_DELAY_MS = 0;
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -138,7 +138,7 @@ export default function DesignerApp() {
 
   async function addAiImage(url: string) {
     const image = await preloadImage(url, imageCache.current);
-    const placement = fitWidthInFrame(image.naturalWidth, image.naturalHeight);
+    const placement = fitCoverInFrame(image.naturalWidth, image.naturalHeight);
     const img: DesignImage = { id: uid(), url, ...placement, rotation: 0 };
     setImages((prev) => [...prev, img]);
     setSelectedBgId(img.id);
