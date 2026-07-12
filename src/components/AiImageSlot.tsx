@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { type AiProvider, serverEndpoint, slotLoadingHint } from "@/lib/ai-providers";
-import { useState } from "react";
 
 export type AiSlotResult = {
   id: string;
@@ -48,7 +47,7 @@ export default function AiImageSlot({
         const res = await fetch(serverEndpoint(provider)!, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, seed, model, slotNumber }), // slotNumber is sent here!
+          body: JSON.stringify({ prompt, seed, model, slotNumber }),
         });
         
         const data = await res.json();
