@@ -1,4 +1,4 @@
-export type AiProvider = "pollinations-server-a" | "pollinations-server-b" | "pollinations-server-c";
+export type AiProvider = "pollinations-server-a" | "pollinations-server-b" | "pollinations-server-c" | "pollinations-browser";
 
 export type AiSlotConfig = {
   provider: AiProvider;
@@ -16,6 +16,7 @@ export function serverEndpoint(provider: AiProvider): string {
     "pollinations-server-a": process.env.NEXT_PUBLIC_API_A || "/api/designer/generate-one",
     "pollinations-server-b": process.env.NEXT_PUBLIC_API_B || "/api/designer/generate-one",
     "pollinations-server-c": process.env.NEXT_PUBLIC_API_C || "/api/designer/generate-one",
+    "pollinations-browser": "",
   };
   return endpoints[provider];
 }
