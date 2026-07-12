@@ -19,7 +19,9 @@ type Props = {
 export default function AiImageSlot({ slotNumber, status, url, onPick }: Props) {
   return (
     <div className={`ai-slot ai-slot-${status}`}>
-      {url ? (
+      {status === "error" ? (
+        <span className="ai-slot-msg" style={{ color: "var(--danger)" }}>Error</span>
+      ) : url ? (
         <img
           src={url}
           onClick={() => onPick(url)}
