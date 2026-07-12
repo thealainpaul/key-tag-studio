@@ -1,4 +1,3 @@
-/** Three independent paths: phone, server, server (different model). */
 export type AiProvider = "pollinations-browser" | "pollinations-server";
 
 export type AiSlotConfig = {
@@ -7,9 +6,9 @@ export type AiSlotConfig = {
 };
 
 export const AI_SLOT_CONFIG: AiSlotConfig[] = [
+  { provider: "pollinations-browser", model: "turbo" },
+  { provider: "pollinations-browser", model: "turbo" },
   { provider: "pollinations-server", model: "turbo" },
-  { provider: "pollinations-server", model: "flux" },
-  { provider: "pollinations-server", model: "flux-realism" },
 ];
 
 export function serverEndpoint(provider: AiProvider): string | null {
@@ -18,5 +17,5 @@ export function serverEndpoint(provider: AiProvider): string | null {
 }
 
 export function slotLoadingHint(slotNumber: number): string {
-  return `Image ${slotNumber}…`;
+  return `Slot ${slotNumber} initializing...`;
 }
