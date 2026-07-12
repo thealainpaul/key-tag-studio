@@ -8,8 +8,8 @@ export type AiSlotConfig = {
 
 export const AI_SLOT_CONFIG: AiSlotConfig[] = [
   { provider: "pollinations-browser", model: "turbo" },
-  { provider: "pollinations-browser", model: "midijourney" },
-  { provider: "pollinations-browser", model: "openai" },
+  { provider: "pollinations-browser", model: "flux" },
+  { provider: "pollinations-browser", model: "turbo" },
 ];
 
 export function serverEndpoint(provider: AiProvider): string | null {
