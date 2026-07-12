@@ -4,7 +4,7 @@ import { makePollinationsUrl } from "@/lib/design";
 export const maxDuration = 300;
 
 const POLLS = 30;
-const POLL_MS = 5000;
+const POLL_MS = 3000; // Faster polling interval
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -17,12 +17,14 @@ export async function POST(req: NextRequest) {
   }
 
   const s = seed ?? Math.floor(Math.random() * 900_000);
-  const url = makePollinationsUrl(prompt.trim(), s, false, model || "turbo");
+  // Add a unique timestamp to the base URL to force a cache bypass on the Pollinations gateway
+  const url = `${makePollinationsUrl(prompt.trim(), s, false, model || "turbo")}&nocache=${Date.now()}`;
 
   for (let i = 0; i < POLLS; i++) {
-    if (i > 0) await sleep(POLL_MS);
+    // Add an exponential jitter to stagger the backend requests so they don't hit the IP limit at once
+    if (i > 0) await sleep(POLL_MS + Math.random() * 2000);
     try {
-      const res = await fetch(`${url}&_=${Date.now()}`, {
+      const res = await fetch(url, {
         signal: AbortSignal.timeout(90000),
         headers: { Accept: "image/*" },
       });
