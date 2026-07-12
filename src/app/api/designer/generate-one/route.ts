@@ -10,9 +10,8 @@ export async function POST(req: NextRequest) {
   }
 
   const s = seed ?? Math.floor(Math.random() * 900_000);
-  // We simply generate the URL. The browser will fetch the image directly, 
-  // bypassing our server's download bottleneck.
   const url = makePollinationsUrl(prompt.trim(), s, false, model || "turbo");
 
+  // Send the URL back immediately. The browser will fetch the image directly.
   return NextResponse.json({ success: true, url: `${url}&_=${Date.now()}` });
 }
