@@ -2,13 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { type AiProvider, serverEndpoint, slotLoadingHint } from "@/lib/ai-providers";
-
-export type AiSlotResult = {
-  id: string;
-  url: string | null;
-  status: "loading" | "ok" | "error";
-  error?: string;
-};
+import { makePollinationsUrl } from "@/lib/design";
 
 type Props = {
   id: string;
@@ -18,69 +12,47 @@ type Props = {
   prompt: string;
   seed: number;
   active: boolean;
-  onUpdate: (slot: AiSlotResult) => void;
+  onUpdate: (slot: any) => void;
   onPick: (url: string) => void;
 };
 
-export default function AiImageSlot({
-  id,
-  slotNumber,
-  provider,
-  model,
-  prompt,
-  seed,
-  active,
-  onUpdate,
-  onPick,
-}: Props) {
-  const [readyUrl, setReadyUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
+export default function AiImageSlot({ id, slotNumber, provider, model, prompt, seed, active, onUpdate, onPick }: Props) {
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
+  const [status, setStatus] = useState<"loading" | "ok">("loading");
 
   useEffect(() => {
     if (!active) return;
-    
-    async function generate() {
-      onUpdate({ id, url: null, status: "loading" });
-      setStatus("loading");
+    setStatus("loading");
+    setImgUrl(null);
 
-      try {
+    async function load() {
+      if (provider === "pollinations-browser") {
+        const url = makePollinationsUrl(prompt, seed, false, model);
+        setImgUrl(`${url}&_=${Date.now()}`);
+      } else {
         const res = await fetch(serverEndpoint(provider)!, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, seed, model, slotNumber }),
+          body: JSON.stringify({ prompt, seed, model }),
         });
-        
         const data = await res.json();
-        if (data.success) {
-          setReadyUrl(data.url);
-          setStatus("ok");
-          onUpdate({ id, url: data.url, status: "ok" });
-        } else {
-          throw new Error();
-        }
-      } catch {
-        setStatus("error");
-        onUpdate({ id, url: null, status: "error" });
+        if (data.success) setImgUrl(data.url);
       }
     }
-
-    generate();
-  }, [active, id, prompt, seed, provider, model, slotNumber, onUpdate]);
-
-  const isOk = status === "ok";
-  const loadingMsg = slotNumber ? slotLoadingHint(slotNumber) : "Generating…";
+    load();
+  }, [active, provider, prompt, seed, model]);
 
   return (
     <div className={`ai-slot ai-slot-${status}`}>
-      {isOk && readyUrl ? (
+      {imgUrl ? (
         <img
-          src={readyUrl}
-          alt=""
-          onClick={() => onPick(readyUrl)}
+          src={imgUrl}
+          onLoad={() => setStatus("ok")}
+          onClick={() => onPick(imgUrl)}
           style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }}
         />
       ) : (
-        <span className="ai-slot-msg">{loadingMsg}</span>
+        <span className="ai-slot-msg">{slotNumber ? slotLoadingHint(slotNumber) : "Generating…"}</span>
       )}
     </div>
   );
