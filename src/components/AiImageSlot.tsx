@@ -53,13 +53,18 @@ export default function AiImageSlot({
 
   const getMultiChannelUrl = (p: string, s: number, m: string, slot?: number) => {
     const encodedPrompt = encodeURIComponent(p);
+    let chosenModel = m;
+    let chosenSeed = s;
+    
     if (slot === 2) {
-      return `https://image.pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${s}&model=flux&nologo=true&_=${Date.now()}`;
+      chosenModel = "flux";
+      chosenSeed = s + 10003;
+    } else if (slot === 3) {
+      chosenModel = "turbo";
+      chosenSeed = s + 20011;
     }
-    if (slot === 3) {
-      return `https://image.pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${s}&model=openai&nologo=true&_=${Date.now()}`;
-    }
-    return `https://image.pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${s}&model=turbo&nologo=true&_=${Date.now()}`;
+
+    return `https://image.pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${chosenSeed}&model=${chosenModel}&nologo=true&_=${Date.now()}`;
   };
 
   useEffect(() => {
