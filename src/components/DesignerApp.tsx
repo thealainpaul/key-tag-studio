@@ -176,29 +176,27 @@ export default function DesignerApp() {
             const finalUrl = `${url}&_=${Date.now()}`;
             setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, url: finalUrl, status: "ok" } : s)));
           } else {
-            const endpoint = serverEndpoint(cfg.provider);
-            console.log(`[DEBUG] Worker ${i + 1} firing to: ${endpoint}`);
+            // FIX: Added /generate path to the endpoint
+            const baseEndpoint = serverEndpoint(cfg.provider);
+            const endpoint = `${baseEndpoint.replace(/\/$/, "")}/generate`;
             
-            const res = await fetch(endpoint!, {
+            const res = await fetch(endpoint, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ prompt: aiPrompt, seed, model: cfg.model, slotNumber: i + 1 }),
             });
             
-            if (!res.ok) {
-                const text = await res.text();
-                throw new Error(`HTTP ${res.status}: ${text}`);
-            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             
             const data = await res.json();
             if (data.success) {
               setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, url: data.url, status: "ok" } : s)));
             } else {
-              throw new Error("Worker returned success=false");
+              throw new Error("Worker success: false");
             }
           }
         } catch (e) {
-          console.error(`[ERROR] Worker ${i + 1} failed:`, e);
+          console.error(`Worker ${i + 1} failed:`, e);
           setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, status: "error" } : s)));
         }
       })
