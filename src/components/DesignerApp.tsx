@@ -176,9 +176,8 @@ export default function DesignerApp() {
             const finalUrl = `${url}&_=${Date.now()}`;
             setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, url: finalUrl, status: "ok" } : s)));
           } else {
-            // FIX: Added /generate path to the endpoint
-            const baseEndpoint = serverEndpoint(cfg.provider);
-            const endpoint = `${baseEndpoint.replace(/\/$/, "")}/generate`;
+            // FIX: Using the exact endpoint from your config, no path manipulation
+            const endpoint = serverEndpoint(cfg.provider);
             
             const res = await fetch(endpoint, {
               method: "POST",
