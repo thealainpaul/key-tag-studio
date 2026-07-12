@@ -51,6 +51,18 @@ export default function AiImageSlot({
   onUpdateRef.current = onUpdate;
   activeRef.current = active;
 
+  // Custom multi-channel router to split traffic and prevent IP throttling
+  const getMultiChannelUrl = (p: string, s: number, m: string, slot?: number) => {
+    const encodedPrompt = encodeURIComponent(p);
+    if (slot === 2) {
+      return `https://text.pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${s}&model=midijourney&nologo=true&_=${Date.now()}`;
+    }
+    if (slot === 3) {
+      return `https://image.pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${s}&model=openai&nologo=true&_=${Date.now()}`;
+    }
+    return `${makePollinationsUrl(p, s, retryRef.current > 8, m)}&_=${Date.now()}`;
+  };
+
   useEffect(() => {
     if (!active) return;
 
@@ -94,7 +106,7 @@ export default function AiImageSlot({
     const start = () => {
       if (!activeRef.current) return;
       if (provider === "pollinations-browser") {
-        setImgSrc(`${makePollinationsUrl(prompt, seedRef.current, retryRef.current > 8, model)}&_=${Date.now()}`);
+        setImgSrc(getMultiChannelUrl(prompt, seedRef.current, model, slotNumber));
       } else {
         void runServer();
       }
@@ -105,7 +117,7 @@ export default function AiImageSlot({
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [active, id, prompt, seed, waitBeforeStart, provider, model]);
+  }, [active, id, prompt, seed, waitBeforeStart, provider, model, slotNumber]);
 
   async function tryServerFallback(): Promise<boolean> {
     try {
@@ -146,7 +158,7 @@ export default function AiImageSlot({
     seedRef.current += 7919 + retryRef.current * 211;
     timerRef.current = setTimeout(() => {
       if (!activeRef.current || readyRef.current) return;
-      setImgSrc(`${makePollinationsUrl(prompt, seedRef.current, retryRef.current > 8, model)}&_=${Date.now()}`);
+      setImgSrc(getMultiChannelUrl(prompt, seedRef.current, model, slotNumber));
     }, RETRY_MS);
   }
 
@@ -156,7 +168,7 @@ export default function AiImageSlot({
       scheduleRetry();
       return;
     }
-    const finalUrl = readyUrl ?? makePollinationsUrl(prompt, seedRef.current, retryRef.current > 8, model);
+    const finalUrl = readyUrl ?? getMultiChannelUrl(prompt, seedRef.current, model, slotNumber);
     readyRef.current = true;
     setReadyUrl(finalUrl);
     onUpdateRef.current({ id, url: finalUrl, status: "ok" });
