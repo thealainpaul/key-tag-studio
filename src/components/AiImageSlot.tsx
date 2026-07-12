@@ -51,16 +51,15 @@ export default function AiImageSlot({
   onUpdateRef.current = onUpdate;
   activeRef.current = active;
 
-  // Custom multi-channel router to split traffic and prevent IP throttling
   const getMultiChannelUrl = (p: string, s: number, m: string, slot?: number) => {
     const encodedPrompt = encodeURIComponent(p);
     if (slot === 2) {
-      return `https://text.pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${s}&model=midijourney&nologo=true&_=${Date.now()}`;
+      return `https://image.pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${s}&model=flux&nologo=true&_=${Date.now()}`;
     }
     if (slot === 3) {
       return `https://image.pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${s}&model=openai&nologo=true&_=${Date.now()}`;
     }
-    return `${makePollinationsUrl(p, s, retryRef.current > 8, m)}&_=${Date.now()}`;
+    return `https://image.pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${s}&model=turbo&nologo=true&_=${Date.now()}`;
   };
 
   useEffect(() => {
