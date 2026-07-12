@@ -164,7 +164,6 @@ export default function DesignerApp() {
       }))
     );
 
-    // Parallel Execution to Distributed Workers
     await Promise.all(
       Array.from({ length: AI_SLOT_COUNT }).map(async (_, i) => {
         const cfg = AI_SLOT_CONFIG[i];
@@ -177,20 +176,29 @@ export default function DesignerApp() {
             const finalUrl = `${url}&_=${Date.now()}`;
             setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, url: finalUrl, status: "ok" } : s)));
           } else {
-            const res = await fetch(serverEndpoint(cfg.provider)!, {
+            const endpoint = serverEndpoint(cfg.provider);
+            console.log(`[DEBUG] Worker ${i + 1} firing to: ${endpoint}`);
+            
+            const res = await fetch(endpoint!, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ prompt: aiPrompt, seed, model: cfg.model, slotNumber: i + 1 }),
             });
+            
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`HTTP ${res.status}: ${text}`);
+            }
+            
             const data = await res.json();
             if (data.success) {
               setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, url: data.url, status: "ok" } : s)));
             } else {
-              throw new Error("Worker failed");
+              throw new Error("Worker returned success=false");
             }
           }
         } catch (e) {
-          console.error(`Worker ${i + 1} failed:`, e);
+          console.error(`[ERROR] Worker ${i + 1} failed:`, e);
           setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, status: "error" } : s)));
         }
       })
