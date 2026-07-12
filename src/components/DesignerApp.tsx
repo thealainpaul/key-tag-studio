@@ -27,10 +27,8 @@ async function generateAi() {
             const finalUrl = `${url}&_=${Date.now()}`;
             setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, url: finalUrl, status: "ok" } : s)));
           } else {
-            // Updated to target the /generate endpoint on your workers
-            const endpoint = `${serverEndpoint(cfg.provider)}/generate`;
-            
-            const res = await fetch(endpoint, {
+            // Reverted to base URL hit
+            const res = await fetch(serverEndpoint(cfg.provider), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ prompt: aiPrompt, seed, model: cfg.model, slotNumber: i + 1 }),
