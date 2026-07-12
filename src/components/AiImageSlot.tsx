@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 import { type AiProvider, serverEndpoint, slotLoadingHint } from "@/lib/ai-providers";
 import { makePollinationsUrl } from "@/lib/design";
 
+export type AiSlotResult = {
+  id: string;
+  url: string | null;
+  status: "loading" | "ok" | "error";
+};
+
 type Props = {
   id: string;
   slotNumber?: number;
@@ -12,8 +18,8 @@ type Props = {
   prompt: string;
   seed: number;
   active: boolean;
-  waitBeforeStart: number; // Added this
-  onUpdate: (slot: any) => void;
+  waitBeforeStart: number;
+  onUpdate: (slot: AiSlotResult) => void;
   onPick: (url: string) => void;
 };
 
@@ -25,13 +31,16 @@ export default function AiImageSlot({ id, slotNumber, provider, model, prompt, s
     if (!active) return;
     setStatus("loading");
     setImgUrl(null);
+    onUpdate({ id, url: null, status: "loading" });
 
     const timer = setTimeout(async () => {
       try {
         if (provider === "pollinations-browser") {
           const url = makePollinationsUrl(prompt, seed, false, model);
-          setImgUrl(`${url}&_=${Date.now()}`);
+          const finalUrl = `${url}&_=${Date.now()}`;
+          setImgUrl(finalUrl);
           setStatus("ok");
+          onUpdate({ id, url: finalUrl, status: "ok" });
         } else {
           const res = await fetch(serverEndpoint(provider)!, {
             method: "POST",
@@ -42,17 +51,19 @@ export default function AiImageSlot({ id, slotNumber, provider, model, prompt, s
           if (data.success) {
             setImgUrl(data.url);
             setStatus("ok");
+            onUpdate({ id, url: data.url, status: "ok" });
           } else {
             throw new Error();
           }
         }
       } catch {
         setStatus("error");
+        onUpdate({ id, url: null, status: "error" });
       }
     }, waitBeforeStart);
 
     return () => clearTimeout(timer);
-  }, [active, provider, prompt, seed, model, id, waitBeforeStart, slotNumber]);
+  }, [active, provider, prompt, seed, model, id, waitBeforeStart, slotNumber, onUpdate]);
 
   return (
     <div className={`ai-slot ai-slot-${status}`}>
