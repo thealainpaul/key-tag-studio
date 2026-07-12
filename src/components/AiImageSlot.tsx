@@ -18,7 +18,7 @@ type Props = {
 
 export default function AiImageSlot({ id, slotNumber, provider, model, prompt, seed, active, onUpdate, onPick }: Props) {
   const [imgUrl, setImgUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState<"loading" | "ok">("loading");
+  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
 
   useEffect(() => {
     if (!active) return;
@@ -26,28 +26,37 @@ export default function AiImageSlot({ id, slotNumber, provider, model, prompt, s
     setImgUrl(null);
 
     async function load() {
-      if (provider === "pollinations-browser") {
-        const url = makePollinationsUrl(prompt, seed, false, model);
-        setImgUrl(`${url}&_=${Date.now()}`);
-      } else {
-        const res = await fetch(serverEndpoint(provider)!, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, seed, model }),
-        });
-        const data = await res.json();
-        if (data.success) setImgUrl(data.url);
+      try {
+        if (provider === "pollinations-browser") {
+          const url = makePollinationsUrl(prompt, seed, false, model);
+          setImgUrl(`${url}&_=${Date.now()}`);
+          setStatus("ok");
+        } else {
+          const res = await fetch(serverEndpoint(provider)!, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt, seed, model }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            setImgUrl(data.url);
+            setStatus("ok");
+          } else {
+            throw new Error();
+          }
+        }
+      } catch {
+        setStatus("error");
       }
     }
     load();
-  }, [active, provider, prompt, seed, model]);
+  }, [active, provider, prompt, seed, model, id]);
 
   return (
     <div className={`ai-slot ai-slot-${status}`}>
       {imgUrl ? (
         <img
           src={imgUrl}
-          onLoad={() => setStatus("ok")}
           onClick={() => onPick(imgUrl)}
           style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }}
         />
