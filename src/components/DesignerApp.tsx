@@ -27,7 +27,7 @@ const AI_SLOT_COUNT = 3;
 type AiSlot = AiSlotResult;
 
 /** Tiny gap before slot 3 so two server requests do not collide. */
-const AI_STAGGER_MS = 0;
+const AI_STAGGER_MS = 500;
 const AI_SLOT3_DELAY_MS = 0;
 
 function uid() {
