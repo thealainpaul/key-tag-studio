@@ -176,10 +176,8 @@ export default function DesignerApp() {
             const finalUrl = `${url}&_=${Date.now()}`;
             setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, url: finalUrl, status: "ok" } : s)));
           } else {
-            // FIX: Using the exact endpoint from your config, no path manipulation
-            const endpoint = serverEndpoint(cfg.provider);
-            
-            const res = await fetch(endpoint, {
+            // No suffix added here; hits the domain root directly
+            const res = await fetch(serverEndpoint(cfg.provider), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ prompt: aiPrompt, seed, model: cfg.model, slotNumber: i + 1 }),
