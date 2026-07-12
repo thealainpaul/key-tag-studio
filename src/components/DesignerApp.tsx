@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
 import { fitCoverInFrame, fitWidthInFrame } from "@/lib/design";
-import AiImageSlot, { AiSlotResult } from "@/components/AiImageSlot";
+import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
 import { AI_SLOT_CONFIG } from "@/lib/ai-providers";
 import KeyTagMockupPreview from "@/components/KeyTagMockupPreview";
 import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
