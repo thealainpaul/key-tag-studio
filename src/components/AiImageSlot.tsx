@@ -60,7 +60,7 @@ export default function AiImageSlot({
       chosenModel = "flux";
       chosenSeed = s + 10003;
     } else if (slot === 3) {
-      chosenModel = "turbo";
+      chosenModel = "seedream";
       chosenSeed = s + 20011;
     }
 
@@ -116,8 +116,7 @@ export default function AiImageSlot({
       }
     };
 
-    // Add staggered micro-delays (e.g., Slot 1 = instant, Slot 2 = 450ms, Slot 3 = 900ms)
-    // This stops the network from flagging simultaneous multi-requests as a single burst.
+    // Staggered micro-delays to let each pipeline breathe
     const calculatedDelay = waitBeforeStart + ((slotNumber || 1) - 1) * 450;
     timerRef.current = setTimeout(start, calculatedDelay);
 
