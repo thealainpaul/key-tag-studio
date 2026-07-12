@@ -8,7 +8,7 @@ export type AiSlotConfig = {
 
 export const AI_SLOT_CONFIG: AiSlotConfig[] = [
   { provider: "pollinations-browser", model: "turbo" },
-  { provider: "pollinations-server", model: "turbo" },
+  { provider: "pollinations-browser", model: "turbo" },
   { provider: "pollinations-browser", model: "turbo" },
 ];
 
