@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { makePollinationsUrl } from "@/lib/design";
+import { useEffect, useRef } from "react";
 import { type AiProvider, serverEndpoint, slotLoadingHint } from "@/lib/ai-providers";
+import { useState } from "react";
 
 export type AiSlotResult = {
   id: string;
@@ -18,15 +18,10 @@ type Props = {
   model: string;
   prompt: string;
   seed: number;
-  waitBeforeStart: number;
   active: boolean;
   onUpdate: (slot: AiSlotResult) => void;
   onPick: (url: string) => void;
 };
-
-const RETRY_MS = 3500;
-const SERVER_FALLBACK_EVERY = 5;
-const MAX_SERVER_RETRIES = 6;
 
 export default function AiImageSlot({
   id,
@@ -35,175 +30,59 @@ export default function AiImageSlot({
   model,
   prompt,
   seed,
-  waitBeforeStart,
   active,
   onUpdate,
   onPick,
 }: Props) {
-  const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [readyUrl, setReadyUrl] = useState<string | null>(null);
-  const retryRef = useRef(0);
-  const seedRef = useRef(seed);
-  const readyRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const activeRef = useRef(active);
-  const onUpdateRef = useRef(onUpdate);
-  onUpdateRef.current = onUpdate;
-  activeRef.current = active;
-
-  const getMultiChannelUrl = (p: string, s: number, m: string, slot?: number) => {
-    const encodedPrompt = encodeURIComponent(p);
-    let chosenModel = m;
-    let chosenSeed = s;
-    
-    if (slot === 2) {
-      chosenModel = "flux";
-      chosenSeed = s + 10003;
-    } else {
-      chosenModel = "turbo";
-      chosenSeed = s + 20011;
-    }
-
-    return `https://image.pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${chosenSeed}&model=${chosenModel}&nologo=true&_=${Date.now()}`;
-  };
+  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
 
   useEffect(() => {
     if (!active) return;
+    
+    async function generate() {
+      onUpdate({ id, url: null, status: "loading" });
+      setStatus("loading");
 
-    retryRef.current = 0;
-    seedRef.current = seed;
-    readyRef.current = false;
-    setImgSrc(null);
-    setReadyUrl(null);
-    onUpdateRef.current({ id, url: null, status: "loading" });
-
-    const endpoint = serverEndpoint(provider);
-
-    async function runServer() {
-      if (!endpoint || !activeRef.current) return;
       try {
-        const res = await fetch(endpoint, {
+        const res = await fetch(serverEndpoint(provider)!, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, seed: seedRef.current, model }),
+          body: JSON.stringify({ prompt, seed, model, slotNumber }), // slotNumber is sent here!
         });
+        
         const data = await res.json();
-        if (data.success && data.url) {
-          readyRef.current = true;
+        if (data.success) {
           setReadyUrl(data.url);
-          setImgSrc(data.url);
-          onUpdateRef.current({ id, url: data.url, status: "ok" });
-          return;
+          setStatus("ok");
+          onUpdate({ id, url: data.url, status: "ok" });
+        } else {
+          throw new Error();
         }
       } catch {
-        // retry below
+        setStatus("error");
+        onUpdate({ id, url: null, status: "error" });
       }
-      if (!activeRef.current || readyRef.current) return;
-      retryRef.current += 1;
-      if (retryRef.current >= MAX_SERVER_RETRIES) {
-        onUpdateRef.current({ id, url: null, status: "error", error: "Could not generate" });
-        return;
-      }
-      timerRef.current = setTimeout(() => void runServer(), RETRY_MS * retryRef.current);
     }
 
-    const start = () => {
-      if (!activeRef.current) return;
-      if (provider === "pollinations-browser") {
-        setImgSrc(getMultiChannelUrl(prompt, seedRef.current, model, slotNumber));
-      } else {
-        void runServer();
-      }
-    };
+    generate();
+  }, [active, id, prompt, seed, provider, model, slotNumber, onUpdate]);
 
-    timerRef.current = setTimeout(start, waitBeforeStart);
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [active, id, prompt, seed, waitBeforeStart, provider, model, slotNumber]);
-
-  async function tryServerFallback(): Promise<boolean> {
-    try {
-      const res = await fetch("/api/designer/generate-one", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, seed: seedRef.current }),
-      });
-      const data = await res.json();
-      if (data.success && data.url) {
-        readyRef.current = true;
-        setReadyUrl(data.url);
-        setImgSrc(data.url);
-        onUpdateRef.current({ id, url: data.url, status: "ok" });
-        return true;
-      }
-    } catch {
-      // keep trying
-    }
-    return false;
-  }
-
-  function scheduleRetry() {
-    if (!activeRef.current || readyRef.current) return;
-    retryRef.current += 1;
-
-    if (retryRef.current % SERVER_FALLBACK_EVERY === 0) {
-      void tryServerFallback().then((ok) => {
-        if (!ok && activeRef.current && !readyRef.current) queueRetry();
-      });
-      return;
-    }
-
-    queueRetry();
-  }
-
-  function queueRetry() {
-    seedRef.current += 7919 + retryRef.current * 211;
-    timerRef.current = setTimeout(() => {
-      if (!activeRef.current || readyRef.current) return;
-      setImgSrc(getMultiChannelUrl(prompt, seedRef.current, model, slotNumber));
-    }, RETRY_MS);
-  }
-
-  function handleLoad(e: React.SyntheticEvent<HTMLImageElement>) {
-    const img = e.currentTarget;
-    if (img.naturalWidth < 32 || img.naturalHeight < 32) {
-      scheduleRetry();
-      return;
-    }
-    const finalUrl = readyUrl ?? getMultiChannelUrl(prompt, seedRef.current, model, slotNumber);
-    readyRef.current = true;
-    setReadyUrl(finalUrl);
-    onUpdateRef.current({ id, url: finalUrl, status: "ok" });
-  }
-
-  function handleError() {
-    scheduleRetry();
-  }
-
-  const isOk = !!readyUrl;
+  const isOk = status === "ok";
   const loadingMsg = slotNumber ? slotLoadingHint(slotNumber) : "Generating…";
 
   return (
-    <div className={`ai-slot ai-slot-${isOk ? "ok" : "loading"}`}>
-      {imgSrc && (
+    <div className={`ai-slot ai-slot-${status}`}>
+      {isOk && readyUrl ? (
         <img
-          src={imgSrc}
+          src={readyUrl}
           alt=""
-          onLoad={provider === "pollinations-browser" ? handleLoad : undefined}
-          onError={provider === "pollinations-browser" ? handleError : undefined}
-          onClick={() => readyUrl && onPick(readyUrl)}
-          style={{
-            display: isOk ? "block" : "none",
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            cursor: isOk ? "pointer" : "default",
-          }}
+          onClick={() => onPick(readyUrl)}
+          style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }}
         />
+      ) : (
+        <span className="ai-slot-msg">{loadingMsg}</span>
       )}
-      {!isOk && <span className="ai-slot-msg">{loadingMsg}</span>}
     </div>
   );
 }
