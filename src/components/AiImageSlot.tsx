@@ -116,7 +116,10 @@ export default function AiImageSlot({
       }
     };
 
-    timerRef.current = setTimeout(start, waitBeforeStart);
+    // Add staggered micro-delays (e.g., Slot 1 = instant, Slot 2 = 450ms, Slot 3 = 900ms)
+    // This stops the network from flagging simultaneous multi-requests as a single burst.
+    const calculatedDelay = waitBeforeStart + ((slotNumber || 1) - 1) * 450;
+    timerRef.current = setTimeout(start, calculatedDelay);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
