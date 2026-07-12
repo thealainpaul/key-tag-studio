@@ -4,9 +4,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
-import { fitCoverInFrame, fitWidthInFrame } from "@/lib/design";
+import { fitCoverInFrame, fitWidthInFrame, makePollinationsUrl } from "@/lib/design";
 import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
-import { AI_SLOT_CONFIG } from "@/lib/ai-providers";
+import { AI_SLOT_CONFIG, serverEndpoint } from "@/lib/ai-providers";
 import KeyTagMockupPreview from "@/components/KeyTagMockupPreview";
 import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
 import {
@@ -25,10 +25,6 @@ const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
 const AI_SLOT_COUNT = 3;
 
 type AiSlot = AiSlotResult;
-
-/** Tiny gap before slot 3 so two server requests do not collide. */
-const AI_STAGGER_MS = 500;
-const AI_SLOT3_DELAY_MS = 0;
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -151,22 +147,14 @@ export default function DesignerApp() {
     setFitMode("auto");
   }
 
-  useEffect(() => {
-    if (!aiLoading || aiResults.length < AI_SLOT_COUNT) return;
-    const ok = aiResults.filter((s) => s.status === "ok").length;
-    if (ok === AI_SLOT_COUNT) {
-      setAiLoading(false);
-      setAiError("");
-    }
-  }, [aiResults, aiLoading]);
-
   async function generateAi() {
     setAiLoading(true);
     setAiError("");
     const base = Math.floor(Math.random() * 900_000) + 1000;
     const runId = Date.now();
     setAiRunId(runId);
-    setAiSeeds([base, base + 50_000, base + 100_000]);
+    const seeds = [base, base + 50_000, base + 100_000];
+    setAiSeeds(seeds);
     setAiResults(
       Array.from({ length: AI_SLOT_COUNT }, (_, i) => ({
         id: `ai-${runId}-${i}`,
@@ -174,6 +162,42 @@ export default function DesignerApp() {
         status: "loading" as const,
       }))
     );
+
+    try {
+      await Promise.all(
+        Array.from({ length: AI_SLOT_COUNT }).map(async (_, i) => {
+          const cfg = AI_SLOT_CONFIG[i];
+          const seed = seeds[i];
+          const slotId = `ai-${runId}-${i}`;
+
+          try {
+            if (cfg.provider === "pollinations-browser") {
+              const url = makePollinationsUrl(aiPrompt, seed, false, cfg.model);
+              const finalUrl = `${url}&_=${Date.now()}`;
+              setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, url: finalUrl, status: "ok" } : s)));
+            } else {
+              const res = await fetch(serverEndpoint(cfg.provider)!, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prompt: aiPrompt, seed, model: cfg.model, slotNumber: i + 1 }),
+              });
+              const data = await res.json();
+              if (data.success) {
+                setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, url: data.url, status: "ok" } : s)));
+              } else {
+                throw new Error();
+              }
+            }
+          } catch {
+            setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, status: "error" } : s)));
+          }
+        })
+      );
+    } catch (e) {
+      setAiError("Request failed");
+    } finally {
+      setAiLoading(false);
+    }
   }
 
   async function pickAiImage(url: string) {
@@ -401,28 +425,17 @@ export default function DesignerApp() {
                 {labels.close}
               </button>
             </div>
-            {(aiLoading || aiResults.length > 0) && aiSeeds.length === AI_SLOT_COUNT && (
+            {aiResults.length > 0 && (
               <div className="ai-grid">
-                {aiSeeds.map((seed, i) => {
+                {aiResults.map((result, i) => {
                   const cfg = AI_SLOT_CONFIG[i];
                   return (
                     <AiImageSlot
-                      key={`${aiRunId}-${i}`}
-                      id={aiResults[i]?.id ?? `ai-${aiRunId}-${i}`}
+                      key={result.id}
                       slotNumber={i + 1}
                       provider={cfg.provider}
-                      model={cfg.model}
-                      prompt={aiPrompt}
-                      seed={seed}
-                      waitBeforeStart={i === 2 ? AI_SLOT3_DELAY_MS : i * AI_STAGGER_MS}
-                      active={aiLoading}
-                      onUpdate={(slot) => {
-                        setAiResults((prev) => {
-                          const next = [...prev];
-                          next[i] = slot;
-                          return next;
-                        });
-                      }}
+                      status={result.status}
+                      url={result.url}
                       onPick={pickAiImage}
                     />
                   );
