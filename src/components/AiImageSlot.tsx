@@ -59,8 +59,8 @@ export default function AiImageSlot({
     if (slot === 2) {
       chosenModel = "flux";
       chosenSeed = s + 10003;
-    } else if (slot === 3) {
-      chosenModel = "seedream";
+    } else {
+      chosenModel = "turbo";
       chosenSeed = s + 20011;
     }
 
@@ -116,9 +116,7 @@ export default function AiImageSlot({
       }
     };
 
-    // Staggered micro-delays to let each pipeline breathe
-    const calculatedDelay = waitBeforeStart + ((slotNumber || 1) - 1) * 450;
-    timerRef.current = setTimeout(start, calculatedDelay);
+    timerRef.current = setTimeout(start, waitBeforeStart);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
