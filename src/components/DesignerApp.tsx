@@ -155,6 +155,7 @@ export default function DesignerApp() {
     setAiRunId(runId);
     const seeds = [base, base + 50_000, base + 100_000];
     setAiSeeds(seeds);
+    
     setAiResults(
       Array.from({ length: AI_SLOT_COUNT }, (_, i) => ({
         id: `ai-${runId}-${i}`,
@@ -163,41 +164,39 @@ export default function DesignerApp() {
       }))
     );
 
-    try {
-      await Promise.all(
-        Array.from({ length: AI_SLOT_COUNT }).map(async (_, i) => {
-          const cfg = AI_SLOT_CONFIG[i];
-          const seed = seeds[i];
-          const slotId = `ai-${runId}-${i}`;
+    // Parallel Execution to Distributed Workers
+    await Promise.all(
+      Array.from({ length: AI_SLOT_COUNT }).map(async (_, i) => {
+        const cfg = AI_SLOT_CONFIG[i];
+        const seed = seeds[i];
+        const slotId = `ai-${runId}-${i}`;
 
-          try {
-            if (cfg.provider === "pollinations-browser") {
-              const url = makePollinationsUrl(aiPrompt, seed, false, cfg.model);
-              const finalUrl = `${url}&_=${Date.now()}`;
-              setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, url: finalUrl, status: "ok" } : s)));
+        try {
+          if (cfg.provider === "pollinations-browser") {
+            const url = makePollinationsUrl(aiPrompt, seed, false, cfg.model);
+            const finalUrl = `${url}&_=${Date.now()}`;
+            setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, url: finalUrl, status: "ok" } : s)));
+          } else {
+            const res = await fetch(serverEndpoint(cfg.provider)!, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ prompt: aiPrompt, seed, model: cfg.model, slotNumber: i + 1 }),
+            });
+            const data = await res.json();
+            if (data.success) {
+              setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, url: data.url, status: "ok" } : s)));
             } else {
-              const res = await fetch(serverEndpoint(cfg.provider)!, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt: aiPrompt, seed, model: cfg.model, slotNumber: i + 1 }),
-              });
-              const data = await res.json();
-              if (data.success) {
-                setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, url: data.url, status: "ok" } : s)));
-              } else {
-                throw new Error();
-              }
+              throw new Error("Worker failed");
             }
-          } catch {
-            setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, status: "error" } : s)));
           }
-        })
-      );
-    } catch (e) {
-      setAiError("Request failed");
-    } finally {
-      setAiLoading(false);
-    }
+        } catch (e) {
+          console.error(`Worker ${i + 1} failed:`, e);
+          setAiResults((prev) => prev.map((s) => (s.id === slotId ? { ...s, status: "error" } : s)));
+        }
+      })
+    );
+    
+    setAiLoading(false);
   }
 
   async function pickAiImage(url: string) {
