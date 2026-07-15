@@ -1,16 +1,17 @@
 "use client";
 
-import { type AiProvider, slotLoadingHint } from "@/lib/ai-providers";
-
 export type AiSlotResult = {
   id: string;
   url: string | null;
   status: "loading" | "ok" | "error";
 };
 
+function slotLoadingHint(slotNumber: number): string {
+  return `Image ${slotNumber}…`;
+}
+
 type Props = {
   slotNumber: number;
-  provider: AiProvider;
   status: "loading" | "ok" | "error";
   url: string | null;
   onPick: (url: string) => void;
