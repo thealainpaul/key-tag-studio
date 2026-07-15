@@ -3,7 +3,7 @@ import { makeAuthenticatedPollinationsUrl } from "@/lib/design";
 
 export const maxDuration = 60;
 
-const MODEL = "kontext";
+const MODEL = "flux";
 
 async function fetchOneImage(prompt: string, seed: number): Promise<string> {
   const url = makeAuthenticatedPollinationsUrl(prompt, seed, MODEL);
