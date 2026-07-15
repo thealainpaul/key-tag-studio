@@ -60,7 +60,7 @@ export function buildAiPrompt(userPrompt: string): string {
 export function makeAuthenticatedPollinationsUrl(
   userPrompt: string,
   seed: number,
-  model = "kontext"
+  model = "flux"
 ): string {
   const text = `${userPrompt.trim()}, wide horizontal banner photo, subject on its side, realistic`;
   const params = new URLSearchParams({
