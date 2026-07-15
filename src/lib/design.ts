@@ -52,6 +52,27 @@ export function buildAiPrompt(userPrompt: string): string {
   return `${userPrompt.trim()}, wide horizontal banner photo, subject on its side, realistic`;
 }
 
+/**
+ * Authenticated Pollinations request (gen.pollinations.ai). Used server-side only —
+ * requires POLLINATIONS_API_KEY. This is what removes the per-IP rate limit entirely,
+ * so all 3 slots can generate at once without lag.
+ */
+export function makeAuthenticatedPollinationsUrl(
+  userPrompt: string,
+  seed: number,
+  model = "kontext"
+): string {
+  const text = `${userPrompt.trim()}, wide horizontal banner photo, subject on its side, realistic`;
+  const params = new URLSearchParams({
+    width: String(AI_GEN_W),
+    height: String(AI_GEN_H),
+    seed: String(seed),
+    model,
+    nologo: "true",
+  });
+  return `https://gen.pollinations.ai/image/${encodeURIComponent(text)}?${params.toString()}`;
+}
+
 export function pollinationsUrl(
   prompt: string,
   seed: number,
