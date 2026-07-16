@@ -17,3 +17,5 @@ services:
         value: admin@example.com
       - key: ADMIN_PASSWORD
         generateValue: true
+      - key: POLLINATIONS_API_KEY
+        sync: false
