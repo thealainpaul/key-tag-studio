@@ -8,9 +8,12 @@ const AI_GEN_H = Math.round(AI_GEN_W / (46.0 / 19.9));
 
 async function generateImage(prompt: string, seed: number, apiKey: string): Promise<string> {
   const text = `${prompt.trim()}, wide horizontal banner photo, subject on its side, realistic`;
-  const url = `https://gen.pollinations.ai/image/${encodeURIComponent(text)}?width=${AI_GEN_W}&height=${AI_GEN_H}&seed=${seed}&model=${MODEL}&nologo=true&key=${apiKey}`;
+  const url = `https://gen.pollinations.ai/image/${encodeURIComponent(text)}?width=${AI_GEN_W}&height=${AI_GEN_H}&seed=${seed}&model=${MODEL}&nologo=true`;
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(45000) });
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    signal: AbortSignal.timeout(45000),
+  });
 
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
