@@ -5,10 +5,9 @@ export const maxDuration = 60;
 async function generateImage(prompt: string, seed: number, apiKey: string): Promise<string> {
   const text = `${prompt.trim()}, wide horizontal banner photo, subject on its side, realistic`;
   const encoded = encodeURIComponent(text);
-  const url = `https://gen.pollinations.ai/image/${encoded}?width=1280&height=539&seed=${seed}&model=flux&nologo=true`;
+  const url = `https://gen.pollinations.ai/image/${encoded}?width=1280&height=539&seed=${seed}&model=flux&nologo=true&key=${apiKey}`;
 
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${apiKey}` },
     signal: AbortSignal.timeout(45000),
   });
 
