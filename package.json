@@ -15,6 +15,7 @@
     "bcryptjs": "^3.0.2",
     "jose": "^6.0.10",
     "next": "^15.2.4",
+    "qrcode-generator": "^1.4.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "uuid": "^11.1.0"
