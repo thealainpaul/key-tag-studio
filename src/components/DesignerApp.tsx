@@ -442,7 +442,7 @@ export default function DesignerApp() {
                 <input
                   type="text"
                   value={qrUrl}
-                  placeholder="bik-ag.ch or https://bik-ag.ch"
+                  placeholder="example.com"
                   onChange={(e) => setQrUrl(e.target.value)}
                 />
               </div>
