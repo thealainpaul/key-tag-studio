@@ -365,7 +365,7 @@ export default function DesignerApp() {
         />
       </div>
 
-      <div className="controls">
+      <div className="controls" style={embed ? { overflowY: "auto", flex: 1 } : undefined}>
         <div className="toolbar">
           <input
             type="color"
