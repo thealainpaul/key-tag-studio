@@ -1,5 +1,6 @@
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
 import { CANVAS_H, CANVAS_W, drawKeyTagBorder, drawKeyTagFill, getTagMetrics, PRINT_DPI } from "@/lib/keytag-shape";
+import { drawQrPanel, QR_PANEL_WIDTH_RATIO } from "@/lib/qrcode-render";
 import { embedPngDpi } from "@/lib/png-dpi";
 
 /** Enough for print (tag is ~2173px wide) without huge phone-photo payloads. */
@@ -37,7 +38,8 @@ export function drawContentLayer(
   tagColor: string,
   images: DesignImage[],
   textLines: TextLine[],
-  cache: Map<string, HTMLImageElement>
+  cache: Map<string, HTMLImageElement>,
+  qrCode?: { enabled: boolean; url: string }
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -71,6 +73,16 @@ export function drawContentLayer(
     ctx.fillStyle = line.color;
     ctx.fillText(line.text, line.x, line.y);
   });
+
+  // QR code panel — drawn last so it sits on top
+  if (qrCode?.enabled && qrCode.url.trim()) {
+    const panelWidth = Math.round(CANVAS_W * QR_PANEL_WIDTH_RATIO);
+    ctx.save();
+    metrics.drawGeometry(ctx, 0);
+    ctx.clip();
+    drawQrPanel(ctx, qrCode.url, CANVAS_W - panelWidth, 0, panelWidth, CANVAS_H);
+    ctx.restore();
+  }
 }
 
 export function drawBorderLayer(canvas: HTMLCanvasElement) {
@@ -120,7 +132,7 @@ export async function printFileBlob(
   cache: Map<string, HTMLImageElement>
 ): Promise<Blob> {
   const canvas = document.createElement("canvas");
-  drawContentLayer(canvas, payload.tagColor, payload.images, payload.textLines, cache);
+  drawContentLayer(canvas, payload.tagColor, payload.images, payload.textLines, cache, payload.qrCode);
   const raw = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!raw) throw new Error("PNG export failed");
   const tagged = embedPngDpi(new Uint8Array(await raw.arrayBuffer()), PRINT_DPI);
