@@ -43,6 +43,7 @@ export default function DesignerApp() {
   const imagesRef = useRef<DesignImage[]>([]);
   const textLinesRef = useRef<TextLine[]>([]);
   const selectedBgIdRef = useRef<string | null>(null);
+  const imagesBeforeQrRef = useRef<DesignImage[]>([]);
 
   const [tagColor, setTagColor] = useState("#1f1f1f");
   const [images, setImages] = useState<DesignImage[]>([]);
@@ -76,7 +77,7 @@ export default function DesignerApp() {
       if (!canvas) return;
       drawContentLayer(canvas, nextTagColor, nextImages, nextTextLines, imageCache.current, {
         enabled: qrEnabled,
-        url: qrUrl,
+        url: qrUrl.startsWith("http") ? qrUrl : qrUrl ? `https://${qrUrl}` : "",
       });
     },
     [tagColor, qrEnabled, qrUrl]
@@ -95,14 +96,19 @@ export default function DesignerApp() {
     setMockupRevision((r) => r + 1);
   }, [tagColor, images, textLines, qrEnabled, qrUrl, redrawContent]);
 
-  // When QR is enabled, shrink the current image(s) to fit in the available left area
   useEffect(() => {
-    if (!qrEnabled) return;
-    const panelWidth = Math.round(CANVAS_W * QR_PANEL_WIDTH_RATIO);
-    const areaWidth = CANVAS_W - panelWidth;
-    setImages((prev) =>
-      prev.map((img) => ({ ...img, ...fitContainInArea(img.width, img.height, 0, 0, areaWidth, CANVAS_H) }))
-    );
+    if (qrEnabled) {
+      imagesBeforeQrRef.current = images;
+      const panelWidth = Math.round(CANVAS_W * QR_PANEL_WIDTH_RATIO);
+      const areaWidth = CANVAS_W - panelWidth;
+      setImages((prev) =>
+        prev.map((img) => ({ ...img, ...fitContainInArea(img.width, img.height, 0, 0, areaWidth, CANVAS_H) }))
+      );
+    } else {
+      if (imagesBeforeQrRef.current.length > 0) {
+        setImages(imagesBeforeQrRef.current);
+      }
+    }
   }, [qrEnabled]);
 
   useCanvasGestures({
@@ -245,13 +251,14 @@ export default function DesignerApp() {
     setMessage(labels.checkingOut);
     try {
       const previewDataUrl = mergedPreviewDataUrl(canvas, border, "image/jpeg");
+      const finalQrUrl = qrEnabled && qrUrl.trim() && !qrUrl.startsWith("http") ? `https://${qrUrl}` : qrUrl;
       const raw: DesignPayload = {
         tagColor,
         images,
         textLines,
         backgroundImageId: selectedBgId,
         fitMode,
-        qrCode: { enabled: qrEnabled, url: qrUrl },
+        qrCode: { enabled: qrEnabled, url: finalQrUrl },
       };
       const payload = await payloadForSubmit(raw, imageCache.current);
 
@@ -430,14 +437,19 @@ export default function DesignerApp() {
             Add QR code
           </label>
           {qrEnabled && (
-            <div className="field">
-              <input
-                type="url"
-                value={qrUrl}
-                placeholder="https://example.com"
-                onChange={(e) => setQrUrl(e.target.value)}
-              />
-            </div>
+            <>
+              <div className="field">
+                <input
+                  type="text"
+                  value={qrUrl}
+                  placeholder="bik-ag.ch or https://bik-ag.ch"
+                  onChange={(e) => setQrUrl(e.target.value)}
+                />
+              </div>
+              <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
+                Image scaled to fit. Use + / − buttons to resize.
+              </p>
+            </>
           )}
         </div>
 
