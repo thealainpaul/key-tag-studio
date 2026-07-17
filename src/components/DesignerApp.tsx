@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
-import { fitCoverInFrame } from "@/lib/design";
+import { fitCoverInFrame, fitContainInArea } from "@/lib/design";
 import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
 import KeyTagMockupPreview from "@/components/KeyTagMockupPreview";
 import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
@@ -19,6 +19,7 @@ import { scaleImageUniform } from "@/lib/canvas-gestures";
 import { useCanvasGestures } from "@/hooks/useCanvasGestures";
 import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
 import { parseLocale, t } from "@/lib/i18n";
+import { QR_PANEL_WIDTH_RATIO } from "@/lib/qrcode-render";
 
 const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
 const AI_SLOT_COUNT = 3;
@@ -60,6 +61,8 @@ export default function DesignerApp() {
   const [fitMode, setFitMode] = useState<"auto" | "manual">("manual");
   const [canvasReady, setCanvasReady] = useState(false);
   const [mockupRevision, setMockupRevision] = useState(0);
+  const [qrEnabled, setQrEnabled] = useState(false);
+  const [qrUrl, setQrUrl] = useState("");
   const tagColorRef = useRef(tagColor);
 
   imagesRef.current = images;
@@ -71,15 +74,18 @@ export default function DesignerApp() {
     (nextImages = imagesRef.current, nextTextLines = textLinesRef.current, nextTagColor = tagColor) => {
       const canvas = contentCanvasRef.current;
       if (!canvas) return;
-      drawContentLayer(canvas, nextTagColor, nextImages, nextTextLines, imageCache.current);
+      drawContentLayer(canvas, nextTagColor, nextImages, nextTextLines, imageCache.current, {
+        enabled: qrEnabled,
+        url: qrUrl,
+      });
     },
-    [tagColor]
+    [tagColor, qrEnabled, qrUrl]
   );
 
   useLayoutEffect(() => {
     const content = contentCanvasRef.current;
     const border = borderCanvasRef.current;
-    if (content) drawContentLayer(content, tagColor, [], [], imageCache.current);
+    if (content) drawContentLayer(content, tagColor, [], [], imageCache.current, { enabled: false, url: "" });
     if (border) drawBorderLayer(border);
     setCanvasReady(true);
   }, []);
@@ -87,7 +93,17 @@ export default function DesignerApp() {
   useEffect(() => {
     redrawContent();
     setMockupRevision((r) => r + 1);
-  }, [tagColor, images, textLines, redrawContent]);
+  }, [tagColor, images, textLines, qrEnabled, qrUrl, redrawContent]);
+
+  // When QR is enabled, shrink the current image(s) to fit in the available left area
+  useEffect(() => {
+    if (!qrEnabled) return;
+    const panelWidth = Math.round(CANVAS_W * QR_PANEL_WIDTH_RATIO);
+    const areaWidth = CANVAS_W - panelWidth;
+    setImages((prev) =>
+      prev.map((img) => ({ ...img, ...fitContainInArea(img.width, img.height, 0, 0, areaWidth, CANVAS_H) }))
+    );
+  }, [qrEnabled]);
 
   useCanvasGestures({
     canvasRef: contentCanvasRef,
@@ -161,8 +177,6 @@ export default function DesignerApp() {
     );
 
     try {
-      // Single request: the server fetches all 3 images itself, in parallel,
-      // using the Pollinations API key. No per-IP rate limit, no separate workers.
       const res = await fetch("/api/designer/generate-background", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -231,7 +245,14 @@ export default function DesignerApp() {
     setMessage(labels.checkingOut);
     try {
       const previewDataUrl = mergedPreviewDataUrl(canvas, border, "image/jpeg");
-      const raw: DesignPayload = { tagColor, images, textLines, backgroundImageId: selectedBgId, fitMode };
+      const raw: DesignPayload = {
+        tagColor,
+        images,
+        textLines,
+        backgroundImageId: selectedBgId,
+        fitMode,
+        qrCode: { enabled: qrEnabled, url: qrUrl },
+      };
       const payload = await payloadForSubmit(raw, imageCache.current);
 
       const res = await fetch("/api/designs/submit", {
@@ -290,7 +311,13 @@ export default function DesignerApp() {
               className="preview-content"
               style={{ touchAction: "none" }}
             />
-            <canvas ref={borderCanvasRef} width={CANVAS_W} height={CANVAS_H} className="preview-border" aria-hidden="true" />
+            <canvas
+              ref={borderCanvasRef}
+              width={CANVAS_W}
+              height={CANVAS_H}
+              className="preview-border"
+              aria-hidden="true"
+            />
           </div>
         </div>
         <div className="preview-hints">
@@ -301,11 +328,21 @@ export default function DesignerApp() {
         </div>
         {images.length > 0 && (
           <div className="image-scale-bar">
-            <button type="button" className="btn secondary compact" onClick={() => scaleActiveImage(0.9)} aria-label={labels.smaller}>
+            <button
+              type="button"
+              className="btn secondary compact"
+              onClick={() => scaleActiveImage(0.9)}
+              aria-label={labels.smaller}
+            >
               −
             </button>
             <span className="muted">{labels.imageSize}</span>
-            <button type="button" className="btn secondary compact" onClick={() => scaleActiveImage(1.1)} aria-label={labels.larger}>
+            <button
+              type="button"
+              className="btn secondary compact"
+              onClick={() => scaleActiveImage(1.1)}
+              aria-label={labels.larger}
+            >
               +
             </button>
           </div>
@@ -386,6 +423,23 @@ export default function DesignerApp() {
               </div>
             </div>
           ))}
+
+        <div className="qr-block">
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <input type="checkbox" checked={qrEnabled} onChange={(e) => setQrEnabled(e.target.checked)} />
+            Add QR code
+          </label>
+          {qrEnabled && (
+            <div className="field">
+              <input
+                type="url"
+                value={qrUrl}
+                placeholder="https://example.com"
+                onChange={(e) => setQrUrl(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
 
         {message && <p className="message">{message}</p>}
       </div>
