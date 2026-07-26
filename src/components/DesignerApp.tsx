@@ -435,10 +435,10 @@ export default function DesignerApp() {
           ))}
 
         <div className="qr-block">
-          <label style={{ display: "flex", alignItems: "flex-start", gap: "4px" }}>
-            <input type="checkbox" checked={qrEnabled} onChange={(e) => setQrEnabled(e.target.checked)} style={{ marginTop: "2px", flexShrink: 0 }} />
-            <span style={{ fontWeight: "bold", fontSize: "14px" }}>Check this box to add a QR code and then add your website to the box that appears, for a scannable QR Code to your website.</span>
-          </label>
+          <div style={{ display: "flex", gap: "4px", alignItems: "flex-start" }}>
+            <input type="checkbox" checked={qrEnabled} onChange={(e) => setQrEnabled(e.target.checked)} style={{ margin: 0, marginTop: "2px", flexShrink: 0 }} />
+            <span style={{ fontWeight: "bold", fontSize: "14px", lineHeight: "1.4" }}>Check this box to add a QR code and then add your website to the box that appears, for a scannable QR Code to your website.</span>
+          </div>
           {qrEnabled && (
             <>
               <div className="field">
