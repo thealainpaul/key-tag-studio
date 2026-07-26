@@ -435,7 +435,7 @@ export default function DesignerApp() {
           ))}
 
         <div className="qr-block">
-          <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
             <input type="checkbox" checked={qrEnabled} onChange={(e) => setQrEnabled(e.target.checked)} />
             <span style={{ fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>Add QR Code</span>
           </div>
