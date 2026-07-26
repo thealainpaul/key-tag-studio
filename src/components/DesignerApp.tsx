@@ -295,7 +295,7 @@ export default function DesignerApp() {
   }
 
   return (
-    <div 
+    <div
       className={`designer-page${embed ? " embed" : ""}`}
       style={embed ? { height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" } : undefined}
     >
@@ -435,10 +435,10 @@ export default function DesignerApp() {
           ))}
 
         <div className="qr-block">
-          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <input type="checkbox" checked={qrEnabled} onChange={(e) => setQrEnabled(e.target.checked)} />
-            Add QR code
-          </label>
+            <span style={{ fontWeight: "bold", fontSize: "14px" }}>Add QR Code</span>
+          </div>
           {qrEnabled && (
             <>
               <div className="field">
