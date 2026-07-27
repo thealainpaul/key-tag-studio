@@ -386,9 +386,9 @@ export default function DesignerApp() {
           </button>
         </div>
 
-        <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", width: "100%", flexWrap: "wrap" }}>
           <input type="checkbox" checked={qrEnabled} onChange={(e) => setQrEnabled(e.target.checked)} style={{ marginTop: "2px", flexShrink: 0 }} />
-          <span style={{ fontWeight: "bold", fontSize: "14px", minWidth: 0, flex: 1 }}>Check this box to add a QR code and then add your website to the box that appears, for a scannable QR Code to your website.</span>
+          <span style={{ fontWeight: "bold", fontSize: "14px", flex: 1, minWidth: 0 }}>Check this box to add a QR code and then add your website to the box that appears, for a scannable QR Code to your website.</span>
         </div>
         {qrEnabled && (
           <>
