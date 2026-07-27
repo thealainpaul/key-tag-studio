@@ -365,7 +365,7 @@ export default function DesignerApp() {
         />
       </div>
 
-      <div className="controls" style={embed ? { overflowY: "auto", flex: 1 } : undefined}>
+      <div className="controls" style={embed ? { flex: 1, display: "flex", flexDirection: "column" } : undefined}>
         <div className="toolbar">
           <input
             type="color"
@@ -385,6 +385,26 @@ export default function DesignerApp() {
             {labels.addText}
           </button>
         </div>
+
+        <div style={{ display: "flex", gap: "4px", alignItems: "flex-start" }}>
+          <input type="checkbox" checked={qrEnabled} onChange={(e) => setQrEnabled(e.target.checked)} style={{ marginTop: "2px", flexShrink: 0 }} />
+          <span style={{ fontWeight: "bold", fontSize: "14px" }}>Check this box to add a QR code and then add your website to the box that appears, for a scannable QR Code to your website.</span>
+        </div>
+        {qrEnabled && (
+          <>
+            <div className="field">
+              <input
+                type="text"
+                value={qrUrl}
+                placeholder="example.com"
+                onChange={(e) => setQrUrl(e.target.value)}
+              />
+            </div>
+            <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
+              Image scaled to fit. Use + / − buttons to resize.
+            </p>
+          </>
+        )}
 
         {showText &&
           textLines.map((line) => (
@@ -433,30 +453,6 @@ export default function DesignerApp() {
               </div>
             </div>
           ))}
-
-        <div className="410
-          ">
-          <div style={{ display: "flex", gap: "4px", alignItems: "flex-start" }}>
-            <input type="checkbox" checked={qrEnabled} onChange={(e) => setQrEnabled(e.target.checked)} style={{ marginTop: "2px", flexShrink: 0 }} />
-            <span style={{ fontWeight: "bold", fontSize: "14px" }}>Check this box to add a QR code and then add your website to the box that appears, for a scannable QR Code to your website.</span>
-          </div>
-          {qrEnabled && (
-            <>
-              <div className="field">
-                <input
-                  type="text"
-                  value={qrUrl}
-                  placeholder="example.com"
-                  onChange={(e) => setQrUrl(e.target.value)}
-                />
-              </div>
-              <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
-                Image scaled to fit. Use + / − buttons to resize style={{ overflow: "hidden" }}hstyle={{ marginTop: "2px", flexShrink: 0 }}  style={{ marginTop: "2px", flexShrink: 0, position: "absolute", left: "75px", top: "85px" }}415
-                .
-              </p>
-            </>
-          )}
-        </div>
 
         {message && <p className="message">{message}</p>}
       </div>
