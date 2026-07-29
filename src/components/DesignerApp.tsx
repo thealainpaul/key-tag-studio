@@ -359,7 +359,7 @@ export default function DesignerApp() {
         )}
         <KeyTagMockupPreview
           contentCanvasRef={contentCanvasRef}
-          active={images.length > 0}
+          active={true}
           revision={mockupRevision}
           title={labels.mockupTitle}
         />
