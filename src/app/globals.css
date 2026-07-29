@@ -238,8 +238,7 @@ label { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(-
   border-radius: 12px;
   padding: 1rem;
   width: min(640px, 100%);
-  max-height: 90vh;
-  overflow-y: auto;
+  height: auto;
 }
 
 .ai-grid {
