@@ -12,14 +12,22 @@
   --input-bg: #ffffff;
 }
 
-* { box-sizing: border-box; }
-body {
+html, body {
+  height: 100%;
   margin: 0;
+}
+
+* { box-sizing: border-box; }
+
+body {
   font-family: Avenir, "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
   -webkit-tap-highlight-color: transparent;
+  display: flex;
+  flex-direction: column;
 }
+
 a { color: var(--primary); text-decoration: none; }
 button, input, select, textarea { font: inherit; }
 
@@ -27,6 +35,9 @@ button, input, select, textarea { font: inherit; }
   max-width: 900px;
   margin: 0 auto;
   padding: 0.5rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .designer-nav {
@@ -149,6 +160,7 @@ button, input, select, textarea { font: inherit; }
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.75rem;
+  overflow-y: visible;
 }
 
 .toolbar {
