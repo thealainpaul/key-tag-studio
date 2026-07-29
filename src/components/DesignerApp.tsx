@@ -295,9 +295,7 @@ export default function DesignerApp() {
   }
 
   return (
-    <div
-      className={`designer-page${embed ? " embed" : ""}`}
-    >
+    <div className={`designer-page${embed ? " embed" : ""}`}>
       <div className="designer-nav">
         {!embed && (
           <Link href="/admin/login" className="muted" style={{ fontSize: "0.8rem" }}>
