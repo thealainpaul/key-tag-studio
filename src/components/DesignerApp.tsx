@@ -297,7 +297,7 @@ export default function DesignerApp() {
   return (
     <div
       className={`designer-page${embed ? " embed" : ""}`}
-      style={embed ? { height: "auto", display: "flex", flexDirection: "column" } : undefined}
+      style={embed ? { height: "110vh", display: "flex", flexDirection: "column" } : undefined}
     >
       <div className="designer-nav">
         {!embed && (
