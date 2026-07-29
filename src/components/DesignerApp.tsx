@@ -297,7 +297,7 @@ export default function DesignerApp() {
   return (
     <div
       className={`designer-page${embed ? " embed" : ""}`}
-      style={embed ? { height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" } : undefined}
+      style={embed ? { height: "auto", display: "flex", flexDirection: "column" } : undefined}
     >
       <div className="designer-nav">
         {!embed && (
@@ -310,7 +310,7 @@ export default function DesignerApp() {
         </button>
       </div>
 
-      <div className="preview-panel" style={embed ? { flex: "0 1 auto", overflow: "auto" } : undefined}>
+      <div className="preview-panel">
         <div className="preview-wrap">
           <div className="preview-stack" ref={previewStackRef}>
             {!canvasReady && <KeyTagPlaceholder />}
