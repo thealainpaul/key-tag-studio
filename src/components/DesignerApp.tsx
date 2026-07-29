@@ -390,21 +390,18 @@ export default function DesignerApp() {
           <input type="checkbox" checked={qrEnabled} onChange={(e) => setQrEnabled(e.target.checked)} style={{ marginTop: "2px", flexShrink: 0 }} />
           <span style={{ fontWeight: "bold", fontSize: "14px", flex: 1, minWidth: 0 }}>Check this box to add a QR code and then add your website to the box that appears, for a scannable QR Code to your website.</span>
         </div>
-        {qrEnabled && (
-          <>
-            <div className="field">
-              <input
-                type="text"
-                value={qrUrl}
-                placeholder="example.com"
-                onChange={(e) => setQrUrl(e.target.value)}
-              />
-            </div>
-            <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
-              Image scaled to fit. Use + / − buttons to resize.
-            </p>
-          </>
-        )}
+
+        <div className="field">
+          <input
+            type="text"
+            value={qrUrl}
+            placeholder="example.com"
+            onChange={(e) => setQrUrl(e.target.value)}
+          />
+        </div>
+        <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
+          Image scaled to fit. Use + / − buttons to resize.
+        </p>
 
         {showText &&
           textLines.map((line) => (
