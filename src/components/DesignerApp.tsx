@@ -297,7 +297,6 @@ export default function DesignerApp() {
   return (
     <div
       className={`designer-page${embed ? " embed" : ""}`}
-      style={embed ? { height: "120vh", display: "flex", flexDirection: "column" } : undefined}
     >
       <div className="designer-nav">
         {!embed && (
@@ -365,7 +364,7 @@ export default function DesignerApp() {
         />
       </div>
 
-      <div className="controls" style={embed ? { display: "flex", flexDirection: "column" } : undefined}>
+      <div className="controls">
         <div className="toolbar">
           <input
             type="color"
