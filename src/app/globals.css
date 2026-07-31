@@ -16,6 +16,8 @@
 html, body {
   height: auto;
   margin: 0;
+  padding: 0;
+  overflow: visible;
 }
 body {
   font-family: Avenir, "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
@@ -30,6 +32,8 @@ button, input, select, textarea { font: inherit; }
   max-width: 900px;
   margin: 0 auto;
   padding: 0.5rem;
+  height: auto;
+  overflow: visible;
 }
 
 .designer-nav {
@@ -152,6 +156,8 @@ button, input, select, textarea { font: inherit; }
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.75rem;
+  overflow: visible;
+  width: 100%;
 }
 
 .toolbar {
