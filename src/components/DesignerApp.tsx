@@ -90,7 +90,7 @@ export default function DesignerApp() {
           const payload = await payloadForSubmit(raw, imageCache.current);
           
           // Send design data back to WordPress
-          window.parent.window.designSubmitHandler({
+         (window.parent as any).designSubmitHandler({
             image: previewDataUrl,
             designJson: payload,
             tagColor,
