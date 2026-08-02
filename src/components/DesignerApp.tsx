@@ -304,11 +304,19 @@ export default function DesignerApp() {
         return;
       }
 
-      // Design saved successfully, now redirect to WooCommerce checkout with design reference
-      const checkoutUrl = new URL(window.top!.location.href);
+      // Design saved successfully, send message to parent window to redirect to checkout
+      const checkoutUrl = new URL(window.location.href);
+      checkoutUrl.pathname = "/wp-json/bik/v1/redirect-to-checkout";
       checkoutUrl.searchParams.set("design_id", wpData.design_id);
       checkoutUrl.searchParams.set("qty", quantity);
-      window.top!.location.href = checkoutUrl.toString();
+      
+      // Post message to parent window instead of direct redirect
+      window.parent.postMessage({
+        type: 'redirect',
+        url: checkoutUrl.toString()
+      }, '*');
+      
+      setMessage("Redirecting to checkout...");
     } catch (e) {
       console.error("Design submission failed:", e);
       setMessage(labels.checkoutFailed);
