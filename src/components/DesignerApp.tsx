@@ -284,7 +284,7 @@ export default function DesignerApp() {
       const quantity = getQuantityFromPage();
 
       // Send design and quantity to WordPress endpoint BEFORE redirecting to checkout
-      const wpRes = await fetch("/wp-json/bik/v1/save-design", {
+      const wpRes = await fetch("https://bik-ag.ch/wp-json/bik/v1/save-design", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
