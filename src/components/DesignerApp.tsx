@@ -280,8 +280,10 @@ export default function DesignerApp() {
       };
       const payload = await payloadForSubmit(raw, imageCache.current);
 
-      // Get quantity from parent page
-      const quantity = getQuantityFromPage();
+      // Get quantity from WordPress endpoint
+      const qtyRes = await fetch("https://bik-ag.ch/wp-json/bik/v1/get-quantity");
+      const qtyData = await qtyRes.json();
+      const quantity = qtyData.success ? qtyData.quantity : "1";
 
       // Send design and quantity to WordPress endpoint BEFORE redirecting to checkout
       const wpRes = await fetch("https://bik-ag.ch/wp-json/bik/v1/save-design", {
