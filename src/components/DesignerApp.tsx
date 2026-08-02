@@ -239,6 +239,24 @@ export default function DesignerApp() {
     ]);
   }
 
+  function getQuantityFromPage(): string {
+    try {
+      // Try multiple selectors in order of likelihood
+      const qtyInput =
+        window.parent.document?.querySelector<HTMLInputElement>('input[name="quantity"]') ||
+        window.parent.document?.querySelector<HTMLInputElement>('#qty') ||
+        window.parent.document?.querySelector<HTMLInputElement>('#bik-quantity') ||
+        window.parent.document?.querySelector<HTMLInputElement>('.qty');
+
+      if (qtyInput && qtyInput.value) {
+        return qtyInput.value;
+      }
+    } catch (e) {
+      console.log("Could not access parent document for quantity:", e);
+    }
+    return "1"; // Default fallback
+  }
+
   async function submitDesign() {
     const canvas = contentCanvasRef.current;
     const border = borderCanvasRef.current;
@@ -262,30 +280,35 @@ export default function DesignerApp() {
       };
       const payload = await payloadForSubmit(raw, imageCache.current);
 
-      const res = await fetch("/api/designs/submit", {
+      // Get quantity from parent page
+      const quantity = getQuantityFromPage();
+
+      // Send design and quantity to WordPress endpoint BEFORE redirecting to checkout
+      const wpRes = await fetch("/api/designs/save-to-wordpress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tagColor,
+          image: previewDataUrl,
           designJson: payload,
-          previewDataUrl,
+          quantity,
+          tagColor,
           locale,
         }),
       });
-      const data = await res.json();
-      if (!data.success || !data.id) {
-        setMessage(data.error || labels.checkoutFailed);
+
+      const wpData = await wpRes.json();
+      if (!wpData.success || !wpData.design_id) {
+        setMessage(wpData.error || "Failed to save design");
         return;
       }
 
-      if (cartReturn) {
-        const base = cartReturn.includes("?") ? `${cartReturn}&` : `${cartReturn}?`;
-        window.top!.location.href = `${base}bik_ckt_design=${encodeURIComponent(data.id)}`;
-        return;
-      }
-
-      setMessage(`${labels.checkout} OK (${data.id})`);
-    } catch {
+      // Design saved successfully, now redirect to WooCommerce checkout with design reference
+      const checkoutUrl = new URL(window.top!.location.href);
+      checkoutUrl.searchParams.set("design_id", wpData.design_id);
+      checkoutUrl.searchParams.set("qty", quantity);
+      window.top!.location.href = checkoutUrl.toString();
+    } catch (e) {
+      console.error("Design submission failed:", e);
       setMessage(labels.checkoutFailed);
     }
   }
