@@ -71,39 +71,6 @@ export default function DesignerApp() {
   selectedBgIdRef.current = selectedBgId;
   tagColorRef.current = tagColor;
 
-  // Listen for postMessage from WordPress button
-  useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.data.type === 'getDesign') {
-        const canvas = contentCanvasRef.current;
-        if (canvas) {
-          const previewDataUrl = mergedPreviewDataUrl(canvas, borderCanvasRef.current!, "image/jpeg");
-          const finalQrUrl = qrEnabled && qrUrl.trim() && !qrUrl.startsWith("http") ? `https://${qrUrl}` : qrUrl;
-          const raw: DesignPayload = {
-            tagColor,
-            images,
-            textLines,
-            backgroundImageId: selectedBgId,
-            fitMode,
-            qrCode: { enabled: qrEnabled, url: finalQrUrl },
-          };
-          const payload = await payloadForSubmit(raw, imageCache.current);
-          
-          // Send design data back to WordPress
-          (window.parent as any).designSubmitHandler({
-            image: previewDataUrl,
-            designJson: payload,
-            tagColor,
-            locale
-          });
-        }
-      }
-    };
-    
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [images, textLines, tagColor, selectedBgId, fitMode, qrEnabled, qrUrl, locale]);
-
   const redrawContent = useCallback(
     (nextImages = imagesRef.current, nextTextLines = textLinesRef.current, nextTagColor = tagColor) => {
       const canvas = contentCanvasRef.current;
@@ -337,8 +304,19 @@ export default function DesignerApp() {
         return;
       }
 
-      // Design saved - WordPress button will handle redirect
-      setMessage("Design saved successfully!");
+      // Design saved successfully, send message to parent window to redirect to checkout
+      const checkoutUrl = new URL(window.location.href);
+      checkoutUrl.pathname = "/wp-json/bik/v1/redirect-to-checkout";
+      checkoutUrl.searchParams.set("design_id", wpData.design_id);
+      checkoutUrl.searchParams.set("qty", quantity);
+      
+      // Post message to parent window instead of direct redirect
+      window.parent.postMessage({
+        type: 'redirect',
+        url: checkoutUrl.toString()
+      }, '*');
+      
+      setMessage("Redirecting to checkout...");
     } catch (e) {
       console.error("Design submission failed:", e);
       setMessage(labels.checkoutFailed);
