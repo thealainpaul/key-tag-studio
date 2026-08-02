@@ -24,6 +24,10 @@ import { QR_PANEL_WIDTH_RATIO } from "@/lib/qrcode-render";
 const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
 const AI_SLOT_COUNT = 3;
 
+// The WordPress shop. Cart, quantity, pricing and payment all live there.
+// This app only produces the design.
+const SHOP_ORIGIN = "https://bik-ag.ch";
+
 type AiSlot = AiSlotResult;
 
 function uid() {
@@ -35,7 +39,6 @@ export default function DesignerApp() {
   const locale = useMemo(() => parseLocale(searchParams.get("lang")), [searchParams]);
   const labels = t(locale);
   const embed = searchParams.get("embed") === "1";
-  const cartReturn = searchParams.get("cart_return") || "";
   const contentCanvasRef = useRef<HTMLCanvasElement>(null);
   const borderCanvasRef = useRef<HTMLCanvasElement>(null);
   const previewStackRef = useRef<HTMLDivElement>(null);
@@ -124,6 +127,135 @@ export default function DesignerApp() {
     onTextLinesChange: setTextLines,
     onSelectText: setSelectedTextId,
   });
+
+  /**
+   * Save the current design to WordPress and return its id.
+   * Called by the WordPress page, not by any button in here.
+   */
+  const saveDesign = useCallback(async (): Promise<{ ok: boolean; designId?: string; error?: string }> => {
+    const canvas = contentCanvasRef.current;
+    const border = borderCanvasRef.current;
+
+    if (!canvas || !border) {
+      return { ok: false, error: "canvas_not_ready" };
+    }
+    if (imagesRef.current.length === 0) {
+      return { ok: false, error: "no_image" };
+    }
+
+    const previewDataUrl = mergedPreviewDataUrl(canvas, border, "image/jpeg");
+    const finalQrUrl = qrEnabled && qrUrl.trim() && !qrUrl.startsWith("http") ? `https://${qrUrl}` : qrUrl;
+
+    const raw: DesignPayload = {
+      tagColor: tagColorRef.current,
+      images: imagesRef.current,
+      textLines: textLinesRef.current,
+      backgroundImageId: selectedBgIdRef.current,
+      fitMode,
+      qrCode: { enabled: qrEnabled, url: finalQrUrl },
+    };
+
+    const payload = await payloadForSubmit(raw, imageCache.current);
+
+    const res = await fetch(`${SHOP_ORIGIN}/wp-json/bik/v1/save-design`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image: previewDataUrl,
+        designJson: payload,
+        tagColor: tagColorRef.current,
+        locale,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!data.success || !data.design_id) {
+      return { ok: false, error: data.error || "save_failed" };
+    }
+
+    return { ok: true, designId: data.design_id };
+  }, [fitMode, qrEnabled, qrUrl, locale]);
+
+  /**
+   * Listen for instructions from the WordPress page.
+   *
+   * bik_request_design  → save the design, reply with bik_design_ready
+   * bik_ping            → reply with bik_pong so the page knows we are loaded
+   *
+   * Replies also report whether a design exists yet, so the page can keep
+   * its checkout button disabled until the customer has added something.
+   */
+  useEffect(() => {
+    function reply(payload: Record<string, unknown>) {
+      try {
+        window.parent.postMessage(payload, "*");
+      } catch {
+        /* ignore */
+      }
+    }
+
+    async function onMessage(event: MessageEvent) {
+      const data = event.data;
+      if (!data || typeof data !== "object") return;
+
+      if (data.type === "bik_ping") {
+        reply({ type: "bik_pong", hasDesign: imagesRef.current.length > 0 });
+        return;
+      }
+
+      if (data.type === "bik_request_design") {
+        if (imagesRef.current.length === 0) {
+          reply({ type: "bik_design_failed", error: "no_image" });
+          setMessage(labels.needImage);
+          return;
+        }
+
+        setMessage(labels.checkingOut);
+
+        try {
+          const result = await saveDesign();
+          if (result.ok && result.designId) {
+            reply({ type: "bik_design_ready", design_id: result.designId });
+          } else {
+            reply({ type: "bik_design_failed", error: result.error });
+            setMessage(labels.checkoutFailed);
+          }
+        } catch (e) {
+          console.error("Design save failed:", e);
+          reply({ type: "bik_design_failed", error: "exception" });
+          setMessage(labels.checkoutFailed);
+        }
+      }
+    }
+
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [saveDesign, labels]);
+
+  /**
+   * Tell the page whenever the design becomes non-empty or empty again,
+   * so its checkout button can enable and disable itself.
+   */
+  useEffect(() => {
+    try {
+      window.parent.postMessage(
+        { type: "bik_design_state", hasDesign: images.length > 0 },
+        "*"
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [images.length]);
+
+  /** Announce readiness once on load. */
+  useEffect(() => {
+    try {
+      window.parent.postMessage({ type: "bik_studio_ready" }, "*");
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   function scaleActiveImage(factor: number) {
     const id = selectedBgId || images[0]?.id;
@@ -239,90 +371,6 @@ export default function DesignerApp() {
     ]);
   }
 
-  function getQuantityFromPage(): string {
-    try {
-      // Try multiple selectors in order of likelihood
-      const qtyInput =
-        window.parent.document?.querySelector<HTMLInputElement>('input[name="quantity"]') ||
-        window.parent.document?.querySelector<HTMLInputElement>('#qty') ||
-        window.parent.document?.querySelector<HTMLInputElement>('#bik-quantity') ||
-        window.parent.document?.querySelector<HTMLInputElement>('.qty');
-
-      if (qtyInput && qtyInput.value) {
-        return qtyInput.value;
-      }
-    } catch (e) {
-      console.log("Could not access parent document for quantity:", e);
-    }
-    return "1"; // Default fallback
-  }
-
-  async function submitDesign() {
-    const canvas = contentCanvasRef.current;
-    const border = borderCanvasRef.current;
-    if (!canvas || !border) return;
-    if (images.length === 0) {
-      setMessage(labels.needImage);
-      return;
-    }
-
-    setMessage(labels.checkingOut);
-    try {
-      const previewDataUrl = mergedPreviewDataUrl(canvas, border, "image/jpeg");
-      const finalQrUrl = qrEnabled && qrUrl.trim() && !qrUrl.startsWith("http") ? `https://${qrUrl}` : qrUrl;
-      const raw: DesignPayload = {
-        tagColor,
-        images,
-        textLines,
-        backgroundImageId: selectedBgId,
-        fitMode,
-        qrCode: { enabled: qrEnabled, url: finalQrUrl },
-      };
-      const payload = await payloadForSubmit(raw, imageCache.current);
-
-      // Get quantity from WordPress endpoint
-      const qtyRes = await fetch("https://bik-ag.ch/wp-json/bik/v1/get-quantity");
-      const qtyData = await qtyRes.json();
-      const quantity = qtyData.success ? qtyData.quantity : "1";
-
-      // Send design and quantity to WordPress endpoint BEFORE redirecting to checkout
-      const wpRes = await fetch("https://bik-ag.ch/wp-json/bik/v1/save-design", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image: previewDataUrl,
-          designJson: payload,
-          quantity,
-          tagColor,
-          locale,
-        }),
-      });
-
-      const wpData = await wpRes.json();
-      if (!wpData.success || !wpData.design_id) {
-        setMessage(wpData.error || "Failed to save design");
-        return;
-      }
-
-      // Design saved successfully, send message to parent window to redirect to checkout
-      const checkoutUrl = new URL(window.location.href);
-      checkoutUrl.pathname = "/wp-json/bik/v1/redirect-to-checkout";
-      checkoutUrl.searchParams.set("design_id", wpData.design_id);
-      checkoutUrl.searchParams.set("qty", quantity);
-      
-      // Post message to parent window instead of direct redirect
-      window.parent.postMessage({
-        type: 'redirect',
-        url: checkoutUrl.toString()
-      }, '*');
-      
-      setMessage("Redirecting to checkout...");
-    } catch (e) {
-      console.error("Design submission failed:", e);
-      setMessage(labels.checkoutFailed);
-    }
-  }
-
   function updateLine(id: string, patch: Partial<TextLine>) {
     setTextLines((lines) => lines.map((l) => (l.id === id ? { ...l, ...patch } : l)));
   }
@@ -335,9 +383,6 @@ export default function DesignerApp() {
             {labels.admin}
           </Link>
         )}
-        <button className="btn compact" onClick={submitDesign}>
-          {labels.checkout}
-        </button>
       </div>
 
       <div className="preview-panel">
