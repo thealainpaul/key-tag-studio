@@ -90,7 +90,7 @@ export default function DesignerApp() {
           const payload = await payloadForSubmit(raw, imageCache.current);
           
           // Send design data back to WordPress
-         (window.parent as any).designSubmitHandler({
+          window.parent.window.designSubmitHandler({
             image: previewDataUrl,
             designJson: payload,
             tagColor,
@@ -337,19 +337,8 @@ export default function DesignerApp() {
         return;
       }
 
-      // Design saved successfully, send message to parent window to redirect to checkout
-      const checkoutUrl = new URL(window.location.href);
-      checkoutUrl.pathname = "/wp-json/bik/v1/redirect-to-checkout";
-      checkoutUrl.searchParams.set("design_id", wpData.design_id);
-      checkoutUrl.searchParams.set("qty", quantity);
-      
-      // Post message to parent window instead of direct redirect
-      window.parent.postMessage({
-        type: 'redirect',
-        url: checkoutUrl.toString()
-      }, '*');
-      
-      setMessage("Redirecting to checkout...");
+      // Design saved - WordPress button will handle redirect
+      setMessage("Design saved successfully!");
     } catch (e) {
       console.error("Design submission failed:", e);
       setMessage(labels.checkoutFailed);
