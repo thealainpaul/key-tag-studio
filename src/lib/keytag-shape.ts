@@ -8,6 +8,9 @@ export const KEYTAG_SPECS = {
 /** DPI embedded in print PNG files (600 × 2). */
 export const PRINT_DPI = KEYTAG_SPECS.dpi * KEYTAG_SPECS.scale;
 
+/** Width of the red guide border, in millimetres. */
+export const BORDER_WIDTH_MM = 2;
+
 export function mmToPx(mm: number, dpi = KEYTAG_SPECS.dpi, scale = KEYTAG_SPECS.scale) {
   return Math.round((mm / 25.4) * dpi * scale);
 }
@@ -39,12 +42,15 @@ export function getTagMetrics(canvasWidth: number, canvasHeight: number): TagMet
     const lY_t = leftTopY + iPx * slopeRatio;
     const lY_b = leftBottomY - iPx * slopeRatio;
 
+    // Corner radius shrinks with the inset so an expanded outline keeps its shape.
+    const r = Math.max(0, cornerRadius - iPx);
+
     ctx.beginPath();
     ctx.moveTo(lX, lY_t);
-    ctx.lineTo(rX - cornerRadius, rY_t);
-    ctx.quadraticCurveTo(rX, rY_t, rX, rY_t + cornerRadius);
-    ctx.lineTo(rX, rY_b - cornerRadius);
-    ctx.quadraticCurveTo(rX, rY_b, rX - cornerRadius, rY_b);
+    ctx.lineTo(rX - r, rY_t);
+    ctx.quadraticCurveTo(rX, rY_t, rX, rY_t + r);
+    ctx.lineTo(rX, rY_b - r);
+    ctx.quadraticCurveTo(rX, rY_b, rX - r, rY_b);
     ctx.lineTo(lX, lY_b);
     ctx.closePath();
   };
@@ -73,7 +79,7 @@ export function keyTagSvgPath(canvasWidth = CANVAS_W, canvasHeight = CANVAS_H): 
 }
 
 export function keyTagBorderWidth(canvasWidth = CANVAS_W): number {
-  return Math.round(2 * (canvasWidth / 46.0));
+  return Math.round(BORDER_WIDTH_MM * (canvasWidth / 46.0));
 }
 
 export function drawKeyTagFill(
@@ -83,23 +89,35 @@ export function drawKeyTagFill(
   tagColor: string
 ): TagMetrics {
   const metrics = getTagMetrics(canvasWidth, canvasHeight);
-
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-
   ctx.save();
   metrics.drawGeometry(ctx, 0);
   ctx.fillStyle = tagColor;
   ctx.fill();
   ctx.restore();
-
   return metrics;
 }
 
+/**
+ * Red guide border.
+ *
+ * A stroke is centred on its path, so stroking the tag outline directly puts
+ * half the line width INSIDE the tag — covering 1mm of the customer's artwork
+ * and making the framed area look smaller than the real tag.
+ *
+ * The mockup below clips artwork to the outline exactly, so the two never
+ * lined up. Offsetting the stroke outward by half its width puts the border's
+ * inner edge precisely on the tag outline, leaving the artwork fully visible
+ * and matching the mockup.
+ */
 export function drawKeyTagBorder(ctx: CanvasRenderingContext2D, metrics: TagMetrics) {
+  const lineWidthPx = Math.round(BORDER_WIDTH_MM * metrics.mmToPx);
+
   ctx.save();
-  metrics.drawGeometry(ctx, 0);
+  // Negative inset expands the path outward by half the stroke width.
+  metrics.drawGeometry(ctx, -BORDER_WIDTH_MM / 2);
   ctx.strokeStyle = "#ef4444";
-  ctx.lineWidth = Math.round(2 * metrics.mmToPx);
+  ctx.lineWidth = lineWidthPx;
   ctx.stroke();
   ctx.restore();
 }
