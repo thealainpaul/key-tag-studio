@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef, type RefObject, type MutableRefObject } from "react";
 import { CANVAS_H, CANVAS_W, getTagMetrics } from "@/lib/keytag-shape";
 import {
   MOCKUP_ART_PIXELS,
@@ -15,15 +15,29 @@ type Props = {
   active: boolean;
   revision: number;
   title?: string;
+  /** Optional: lets the parent read this canvas, e.g. to save the mockup. */
+  outputRef?: MutableRefObject<HTMLCanvasElement | null>;
 };
 
-export default function KeyTagMockupPreview({ contentCanvasRef, active, revision, title }: Props) {
-  const outputRef = useRef<HTMLCanvasElement>(null);
+export default function KeyTagMockupPreview({
+  contentCanvasRef,
+  active,
+  revision,
+  title,
+  outputRef,
+}: Props) {
+  const localRef = useRef<HTMLCanvasElement>(null);
   const photoRef = useRef<HTMLImageElement | null>(null);
   const photoReadyRef = useRef(false);
 
+  // Keep the parent's ref pointing at the same canvas.
+  useEffect(() => {
+    if (outputRef) outputRef.current = localRef.current;
+  });
+
   useEffect(() => {
     const img = new Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => {
       photoRef.current = img;
       photoReadyRef.current = true;
@@ -37,7 +51,7 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
   }, [active]);
 
   function paint() {
-    const output = outputRef.current;
+    const output = localRef.current;
     const content = contentCanvasRef.current;
     const photo = photoRef.current;
     if (!output || !content || !photo || !photoReadyRef.current) return;
@@ -63,7 +77,6 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
     ctx.rotate(MOCKUP_ROTATE_RAD);
     ctx.translate(-w, -h);
     ctx.scale(w / CANVAS_W, h / CANVAS_H);
-
     const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
     metrics.drawGeometry(ctx);
     ctx.clip();
@@ -82,7 +95,7 @@ export default function KeyTagMockupPreview({ contentCanvasRef, active, revision
     <div className="tag-mockup-panel">
       <p className="tag-mockup-title">{title || "How it will look on your key tag"}</p>
       <div className="tag-mockup-crop">
-        <canvas ref={outputRef} className="tag-mockup-canvas" />
+        <canvas ref={localRef} className="tag-mockup-canvas" />
       </div>
     </div>
   );
