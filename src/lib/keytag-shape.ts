@@ -20,6 +20,22 @@ export const CANVAS_H = mmToPx(KEYTAG_SPECS.designAreaMm.height);
 export const SAFE_W = mmToPx(KEYTAG_SPECS.safeAreaMm.width);
 export const SAFE_H = mmToPx(KEYTAG_SPECS.safeAreaMm.height);
 
+/**
+ * The tag face, MEASURED from keytag-mockup-top.png and held as fractions of
+ * its bounding box, so the red editor is the same shape as the photographed
+ * tag below it.
+ *
+ * The taper is not symmetric — the top edge slopes almost twice as steeply as
+ * the bottom — and the two right corners have genuinely different radii. Round
+ * numbers were never going to line up.
+ */
+const FACE = {
+  leftTop: 0.2071,
+  leftBottom: 0.8738,
+  radiusTop: 0.0631,
+  radiusBottom: 0.0796,
+};
+
 export type TagMetrics = {
   mmToPx: number;
   drawGeometry: (ctx: CanvasRenderingContext2D, insetMm?: number) => void;
@@ -27,28 +43,25 @@ export type TagMetrics = {
 
 export function getTagMetrics(canvasWidth: number, canvasHeight: number): TagMetrics {
   const mmToPxVal = canvasWidth / 46.0;
-  const leftH = Math.round(14.0 * mmToPxVal);
-  const cornerRadius = Math.round(4 * mmToPxVal);
-  const leftTopY = Math.round((canvasHeight - leftH) / 2);
-  const leftBottomY = leftTopY + leftH;
+  const leftTopY = FACE.leftTop * canvasHeight;
+  const leftBottomY = FACE.leftBottom * canvasHeight;
+  const rTop = FACE.radiusTop * canvasWidth;
+  const rBottom = FACE.radiusBottom * canvasWidth;
 
   const drawGeometry = (ctx: CanvasRenderingContext2D, insetMm = 0) => {
-    const iPx = insetMm * mmToPxVal;
-    const lX = 0 + iPx;
-    const rX = canvasWidth - iPx;
-    const rY_t = 0 + iPx;
-    const rY_b = canvasHeight - iPx;
-    const slopeRatio = (canvasHeight - leftH) / (2 * canvasWidth);
-    const lY_t = leftTopY + iPx * slopeRatio;
-    const lY_b = leftBottomY - iPx * slopeRatio;
+    const i = insetMm * mmToPxVal;
+    const lX = i;
+    const rX = canvasWidth - i;
+    const tY = i;
+    const bY = canvasHeight - i;
 
     ctx.beginPath();
-    ctx.moveTo(lX, lY_t);
-    ctx.lineTo(rX - cornerRadius, rY_t);
-    ctx.quadraticCurveTo(rX, rY_t, rX, rY_t + cornerRadius);
-    ctx.lineTo(rX, rY_b - cornerRadius);
-    ctx.quadraticCurveTo(rX, rY_b, rX - cornerRadius, rY_b);
-    ctx.lineTo(lX, lY_b);
+    ctx.moveTo(lX, leftTopY + i);
+    ctx.lineTo(rX - rTop, tY);
+    ctx.quadraticCurveTo(rX, tY, rX, tY + rTop);
+    ctx.lineTo(rX, bY - rBottom);
+    ctx.quadraticCurveTo(rX, bY, rX - rBottom, bY);
+    ctx.lineTo(lX, leftBottomY - i);
     ctx.closePath();
   };
 
@@ -57,19 +70,16 @@ export function getTagMetrics(canvasWidth: number, canvasHeight: number): TagMet
 
 /** SVG path for instant server-side preview before JavaScript loads. */
 export function keyTagSvgPath(canvasWidth = CANVAS_W, canvasHeight = CANVAS_H): string {
-  const mmToPxVal = canvasWidth / 46.0;
-  const leftH = Math.round(14.0 * mmToPxVal);
-  const cornerRadius = Math.round(4 * mmToPxVal);
-  const leftTopY = Math.round((canvasHeight - leftH) / 2);
-  const leftBottomY = leftTopY + leftH;
-  const rX = canvasWidth;
-  const rY_b = canvasHeight;
+  const leftTopY = FACE.leftTop * canvasHeight;
+  const leftBottomY = FACE.leftBottom * canvasHeight;
+  const rTop = FACE.radiusTop * canvasWidth;
+  const rBottom = FACE.radiusBottom * canvasWidth;
   return [
     `M 0 ${leftTopY}`,
-    `L ${rX - cornerRadius} 0`,
-    `Q ${rX} 0 ${rX} ${cornerRadius}`,
-    `L ${rX} ${rY_b - cornerRadius}`,
-    `Q ${rX} ${rY_b} ${rX - cornerRadius} ${rY_b}`,
+    `L ${canvasWidth - rTop} 0`,
+    `Q ${canvasWidth} 0 ${canvasWidth} ${rTop}`,
+    `L ${canvasWidth} ${canvasHeight - rBottom}`,
+    `Q ${canvasWidth} ${canvasHeight} ${canvasWidth - rBottom} ${canvasHeight}`,
     `L 0 ${leftBottomY}`,
     "Z",
   ].join(" ");
