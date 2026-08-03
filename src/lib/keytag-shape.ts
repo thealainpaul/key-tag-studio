@@ -42,15 +42,12 @@ export function getTagMetrics(canvasWidth: number, canvasHeight: number): TagMet
     const lY_t = leftTopY + iPx * slopeRatio;
     const lY_b = leftBottomY - iPx * slopeRatio;
 
-    // Corner radius shrinks with the inset so an expanded outline keeps its shape.
-    const r = Math.max(0, cornerRadius - iPx);
-
     ctx.beginPath();
     ctx.moveTo(lX, lY_t);
-    ctx.lineTo(rX - r, rY_t);
-    ctx.quadraticCurveTo(rX, rY_t, rX, rY_t + r);
-    ctx.lineTo(rX, rY_b - r);
-    ctx.quadraticCurveTo(rX, rY_b, rX - r, rY_b);
+    ctx.lineTo(rX - cornerRadius, rY_t);
+    ctx.quadraticCurveTo(rX, rY_t, rX, rY_t + cornerRadius);
+    ctx.lineTo(rX, rY_b - cornerRadius);
+    ctx.quadraticCurveTo(rX, rY_b, rX - cornerRadius, rY_b);
     ctx.lineTo(lX, lY_b);
     ctx.closePath();
   };
@@ -99,25 +96,13 @@ export function drawKeyTagFill(
 }
 
 /**
- * Red guide border.
- *
- * A stroke is centred on its path, so stroking the tag outline directly puts
- * half the line width INSIDE the tag — covering 1mm of the customer's artwork
- * and making the framed area look smaller than the real tag.
- *
- * The mockup below clips artwork to the outline exactly, so the two never
- * lined up. Offsetting the stroke outward by half its width puts the border's
- * inner edge precisely on the tag outline, leaving the artwork fully visible
- * and matching the mockup.
+ * Red guide border — stroked centred on the tag outline, as originally.
  */
 export function drawKeyTagBorder(ctx: CanvasRenderingContext2D, metrics: TagMetrics) {
-  const lineWidthPx = Math.round(BORDER_WIDTH_MM * metrics.mmToPx);
-
   ctx.save();
-  // Negative inset expands the path outward by half the stroke width.
-  metrics.drawGeometry(ctx, -BORDER_WIDTH_MM / 2);
+  metrics.drawGeometry(ctx, 0);
   ctx.strokeStyle = "#ef4444";
-  ctx.lineWidth = lineWidthPx;
+  ctx.lineWidth = Math.round(BORDER_WIDTH_MM * metrics.mmToPx);
   ctx.stroke();
   ctx.restore();
 }
