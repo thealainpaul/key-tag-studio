@@ -98,63 +98,25 @@ export function drawKeyTagFill(
 /**
  * Red guide border.
  *
- * The band must sit entirely OUTSIDE the tag outline, so the black artwork
- * area the customer sees is exactly the tag they will receive — which is what
- * the mockup below renders.
+ * Stroked centred on the tag outline, which is the only way it can be an even
+ * thickness the whole way round: on the top, right and bottom the outline runs
+ * along the canvas edge, so anything drawn outside it is clipped away.
  *
- * Offsetting the path outward does not work: the left edge is sloped, and the
- * wedge above it is only ~3mm tall, so a shifted band swallows it.
- *
- * Instead the band is stroked centred on the outline and the inner half is
- * then cut away using that same outline. Because both operations use one path,
- * the red edge and the tag edge are the same line by construction.
- *
- * Done on an offscreen canvas so the erase step cannot affect anything already
- * drawn by the caller.
+ * The band therefore covers BORDER_WIDTH_MM / 2 of the tag on every side. That
+ * is the trim margin — the printable area is what sits inside it, which is what
+ * the hint text tells the customer. The mockup clips to the same inner edge.
  */
 export function drawKeyTagBorder(ctx: CanvasRenderingContext2D, metrics: TagMetrics) {
-  const w = ctx.canvas.width;
-  const h = ctx.canvas.height;
-
-  // Centred stroke of double width leaves BORDER_WIDTH_MM outside once the
-  // inner half is removed.
-  const lineWidthPx = Math.round(BORDER_WIDTH_MM * metrics.mmToPx) * 2;
-
-  let off: HTMLCanvasElement | null = null;
-  let o: CanvasRenderingContext2D | null = null;
-
-  if (typeof document !== "undefined") {
-    off = document.createElement("canvas");
-    off.width = w;
-    off.height = h;
-    o = off.getContext("2d");
-  }
-
-  if (!off || !o) {
-    // Fallback: original centred stroke.
-    ctx.save();
-    metrics.drawGeometry(ctx, 0);
-    ctx.strokeStyle = "#ef4444";
-    ctx.lineWidth = Math.round(BORDER_WIDTH_MM * metrics.mmToPx);
-    ctx.stroke();
-    ctx.restore();
-    return;
-  }
-
-  metrics.drawGeometry(o, 0);
-  o.strokeStyle = "#ef4444";
-  o.lineWidth = lineWidthPx;
-  o.lineJoin = "round";
-  o.stroke();
-
-  // Cut away everything inside the tag, leaving the band flush to its edge.
-  o.globalCompositeOperation = "destination-out";
-  metrics.drawGeometry(o, 0);
-  o.fill();
-  o.globalCompositeOperation = "source-over";
-
-  ctx.drawImage(off, 0, 0);
+  ctx.save();
+  metrics.drawGeometry(ctx, 0);
+  ctx.strokeStyle = "#ef4444";
+  ctx.lineWidth = Math.round(BORDER_WIDTH_MM * metrics.mmToPx);
+  ctx.stroke();
+  ctx.restore();
 }
+
+/** Inset from the tag outline to the inner edge of the red band, in mm. */
+export const PRINTABLE_INSET_MM = BORDER_WIDTH_MM / 2;
 
 export function drawKeyTagShape(
   ctx: CanvasRenderingContext2D,
