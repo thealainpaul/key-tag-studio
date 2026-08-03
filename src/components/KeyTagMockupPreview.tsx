@@ -3,8 +3,10 @@
 import { useEffect, useRef, type RefObject, type MutableRefObject } from "react";
 import { CANVAS_H, CANVAS_W, getTagMetrics, PRINTABLE_INSET_MM } from "@/lib/keytag-shape";
 import {
-  MOCKUP_ART_QUAD,
   MOCKUP_CANVAS_PAD_BOTTOM,
+  MOCKUP_FACE_BOTTOM,
+  MOCKUP_FACE_TOP,
+  MOCKUP_FACE_X0,
   MOCKUP_PHOTO,
   MOCKUP_PHOTO_OFFSET_Y,
 } from "@/lib/mockup-layout";
@@ -14,9 +16,48 @@ type Props = {
   active: boolean;
   revision: number;
   title?: string;
-  /** Optional: lets the parent read this canvas, e.g. to save the mockup. */
   outputRef?: MutableRefObject<HTMLCanvasElement | null>;
 };
+
+/**
+ * Top and bottom of the tag outline at a given canvas column, in canvas pixels.
+ *
+ * Read from a one-off render of the outline rather than derived by hand, so it
+ * always agrees with drawGeometry — including the rounded right-hand corners.
+ */
+function measureTagColumns(insetMm: number): { top: Float32Array; bottom: Float32Array } | null {
+  if (typeof document === "undefined") return null;
+
+  const c = document.createElement("canvas");
+  c.width = CANVAS_W;
+  c.height = CANVAS_H;
+  const ctx = c.getContext("2d");
+  if (!ctx) return null;
+
+  const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
+  metrics.drawGeometry(ctx, insetMm);
+  ctx.fillStyle = "#fff";
+  ctx.fill();
+
+  const data = ctx.getImageData(0, 0, CANVAS_W, CANVAS_H).data;
+  const top = new Float32Array(CANVAS_W);
+  const bottom = new Float32Array(CANVAS_W);
+
+  for (let x = 0; x < CANVAS_W; x++) {
+    let t = -1;
+    let b = -1;
+    for (let y = 0; y < CANVAS_H; y++) {
+      if (data[(y * CANVAS_W + x) * 4 + 3] > 8) {
+        if (t < 0) t = y;
+        b = y;
+      }
+    }
+    top[x] = t;
+    bottom[x] = b;
+  }
+
+  return { top, bottom };
+}
 
 export default function KeyTagMockupPreview({
   contentCanvasRef,
@@ -28,6 +69,7 @@ export default function KeyTagMockupPreview({
   const localRef = useRef<HTMLCanvasElement>(null);
   const photoRef = useRef<HTMLImageElement | null>(null);
   const photoReadyRef = useRef(false);
+  const tagColsRef = useRef<{ top: Float32Array; bottom: Float32Array } | null>(null);
 
   useEffect(() => {
     if (outputRef) outputRef.current = localRef.current;
@@ -48,11 +90,7 @@ export default function KeyTagMockupPreview({
     };
   }, [active]);
 
-  /**
-   * The design canvas, masked to the printable area — everything inside the
-   * inner edge of the red guide band. This is exactly what the editor promises
-   * will be printed, so the mockup mirrors it.
-   */
+  /** The design canvas masked to the printable area — inside the red band. */
   function printableSource(content: HTMLCanvasElement): HTMLCanvasElement | null {
     const off = document.createElement("canvas");
     off.width = CANVAS_W;
@@ -89,50 +127,47 @@ export default function KeyTagMockupPreview({
     ctx.fillRect(0, 0, pw, canvasH);
     ctx.drawImage(photo, 0, photoDy, pw, ph);
 
+    if (!tagColsRef.current) {
+      tagColsRef.current = measureTagColumns(PRINTABLE_INSET_MM);
+    }
+    const tagCols = tagColsRef.current;
+    if (!tagCols) return;
+
     const src = printableSource(content);
     if (!src) return;
 
-    const q = MOCKUP_ART_QUAD;
-    const xL = q.topLeft.x;
-    const xR = q.topRight.x;
-    const spanX = xR - xL;
-    if (spanX <= 0) return;
-
-    // The tag is foreshortened in the photo, so the destination is a trapezoid.
-    // Canvas 2D cannot draw one directly, so the artwork is drawn as vertical
-    // strips, each scaled to the exact height of the trapezoid at that column.
-    // At one strip per destination pixel the error is below half a pixel.
-    const strips = Math.ceil(spanX);
-    const srcStep = CANVAS_W / spanX;
+    const nCols = MOCKUP_FACE_TOP.length;
 
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
-    for (let i = 0; i < strips; i++) {
-      const t0 = i / spanX;
-      const t1 = Math.min(1, (i + 1) / spanX);
-      const tMid = (t0 + t1) / 2;
+    // One strip per destination column. Each strip takes the tag's own slice at
+    // the matching position and stretches it to the real opening measured from
+    // the photo — so perspective and rounded corners are reproduced exactly.
+    for (let i = 0; i < nCols; i++) {
+      const destTop = MOCKUP_FACE_TOP[i];
+      const destBottom = MOCKUP_FACE_BOTTOM[i];
+      const destH = destBottom - destTop;
+      if (destH <= 0) continue;
 
-      const topY = q.topLeft.y + (q.topRight.y - q.topLeft.y) * tMid;
-      const botY = q.bottomLeft.y + (q.bottomRight.y - q.bottomLeft.y) * tMid;
-      const h = botY - topY;
-      if (h <= 0) continue;
+      const sxCentre = Math.min(CANVAS_W - 1, Math.round((i / (nCols - 1)) * (CANVAS_W - 1)));
+      const sTop = tagCols.top[sxCentre];
+      const sBottom = tagCols.bottom[sxCentre];
+      if (sTop < 0 || sBottom <= sTop) continue;
 
-      const sx = tMid * CANVAS_W - srcStep / 2;
-      const sw = srcStep;
+      const sw = Math.max(1, CANVAS_W / nCols);
 
-      // Overlap each strip by a pixel so no seam shows between them.
       ctx.drawImage(
         src,
-        Math.max(0, sx),
-        0,
-        Math.max(1, sw),
-        CANVAS_H,
-        xL + i,
-        topY + photoDy,
+        Math.max(0, sxCentre - sw / 2),
+        sTop,
+        sw,
+        sBottom - sTop + 1,
+        MOCKUP_FACE_X0 + i,
+        destTop + photoDy,
         1.5,
-        h
+        destH + 1
       );
     }
 
