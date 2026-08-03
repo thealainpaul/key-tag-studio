@@ -96,15 +96,64 @@ export function drawKeyTagFill(
 }
 
 /**
- * Red guide border — stroked centred on the tag outline, as originally.
+ * Red guide border.
+ *
+ * The band must sit entirely OUTSIDE the tag outline, so the black artwork
+ * area the customer sees is exactly the tag they will receive — which is what
+ * the mockup below renders.
+ *
+ * Offsetting the path outward does not work: the left edge is sloped, and the
+ * wedge above it is only ~3mm tall, so a shifted band swallows it.
+ *
+ * Instead the band is stroked centred on the outline and the inner half is
+ * then cut away using that same outline. Because both operations use one path,
+ * the red edge and the tag edge are the same line by construction.
+ *
+ * Done on an offscreen canvas so the erase step cannot affect anything already
+ * drawn by the caller.
  */
 export function drawKeyTagBorder(ctx: CanvasRenderingContext2D, metrics: TagMetrics) {
-  ctx.save();
-  metrics.drawGeometry(ctx, 0);
-  ctx.strokeStyle = "#ef4444";
-  ctx.lineWidth = Math.round(BORDER_WIDTH_MM * metrics.mmToPx);
-  ctx.stroke();
-  ctx.restore();
+  const w = ctx.canvas.width;
+  const h = ctx.canvas.height;
+
+  // Centred stroke of double width leaves BORDER_WIDTH_MM outside once the
+  // inner half is removed.
+  const lineWidthPx = Math.round(BORDER_WIDTH_MM * metrics.mmToPx) * 2;
+
+  let off: HTMLCanvasElement | null = null;
+  let o: CanvasRenderingContext2D | null = null;
+
+  if (typeof document !== "undefined") {
+    off = document.createElement("canvas");
+    off.width = w;
+    off.height = h;
+    o = off.getContext("2d");
+  }
+
+  if (!off || !o) {
+    // Fallback: original centred stroke.
+    ctx.save();
+    metrics.drawGeometry(ctx, 0);
+    ctx.strokeStyle = "#ef4444";
+    ctx.lineWidth = Math.round(BORDER_WIDTH_MM * metrics.mmToPx);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  metrics.drawGeometry(o, 0);
+  o.strokeStyle = "#ef4444";
+  o.lineWidth = lineWidthPx;
+  o.lineJoin = "round";
+  o.stroke();
+
+  // Cut away everything inside the tag, leaving the band flush to its edge.
+  o.globalCompositeOperation = "destination-out";
+  metrics.drawGeometry(o, 0);
+  o.fill();
+  o.globalCompositeOperation = "source-over";
+
+  ctx.drawImage(off, 0, 0);
 }
 
 export function drawKeyTagShape(
