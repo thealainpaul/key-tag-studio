@@ -1,92 +1,16 @@
-/** The tag photo, with the sample print wiped out. See the note below. */
+/**
+ * The tag photo. The printed face has been punched out of it — that region is
+ * fully transparent — so the metal can be laid OVER the artwork and trim it to
+ * the exact opening. Nothing in the code needs to describe the tag's shape.
+ */
 export const MOCKUP_PHOTO = {
   src: "/keytag-mockup-top.png",
   width: 1024,
   height: 284,
 };
 
-/** Unchanged from the working version. */
 export const MOCKUP_PHOTO_OFFSET_Y = -34;
 export const MOCKUP_CANVAS_PAD_BOTTOM = 36;
 
-/**
- * The printed face of the tag, MEASURED from keytag-mockup-top.png.
- *
- * THE ASSET HAS BEEN CHANGED. keytag-mockup-top.png shipped with a sample
- * design on the tag - a face, a QR code and yellow lettering. That print has
- * been wiped to a flat dark tone, over-covering the opening by 4px so the soft
- * blend at its boundary went too. Nothing of it can show through any more,
- * which is what made a clean edge possible: the artwork no longer has to reach
- * the boundary exactly, it only has to never cross it.
- *
- * The metal body is isolated by colour - bright, mildly warm, not strongly
- * saturated. The face is the enclosed hole in that body, recorded here as its
- * top and bottom edge for every column.
- *
- * Arrays rather than a rectangle, because the face is neither:
- *
- *  - photographed in perspective, so it is a trapezoid. Scale and rotate can
- *    only produce a parallelogram, which is why no combination of
- *    x/y/w/h/rotation ever lined up.
- *  - rounded at both ends, so straight edges overshoot into the metal.
- *
- * The edges are smoothed, then clamped to the real opening so they can never
- * cross onto the metal, then the collapsing tips are trimmed. Verified against
- * the source: 0 rows spill onto metal, and no step exceeds 2px anywhere.
- *
- * Photo pixel space. The paint code adds MOCKUP_PHOTO_OFFSET_Y.
- */
-export const MOCKUP_FACE_X0 = 342;
-export const MOCKUP_FACE_X1 = 796;
-
-/** Top edge of the printed face, one entry per column from X0 to X1. */
-export const MOCKUP_FACE_TOP: number[] = [
-  162, 161, 160, 159, 158, 157, 156, 155, 154, 153, 152, 151, 150, 149, 148, 147, 146, 145, 144, 143, 142, 141, 140, 139, 138,
-  137, 136, 135, 134, 133, 132, 131, 130, 129, 128, 127, 126, 125, 124, 123, 122, 121, 120, 119, 118, 117, 116, 116, 116, 116,
-  115, 115, 115, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 115, 115, 115, 115, 115, 115, 115, 115,
-  115, 114, 113, 113, 112, 112, 112, 112, 112, 112, 112, 112, 112, 112, 112, 113, 113, 113, 113, 113, 114, 114, 114, 114, 114,
-  114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 113, 113, 113, 113, 113, 112, 111, 110, 109, 108, 108, 108,
-  108, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 108, 108, 108, 110, 110, 110, 110, 110, 110, 110, 110,
-  110, 110, 110, 110, 110, 110, 109, 109, 109, 109, 109, 109, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108,
-  108, 108, 108, 108, 108, 108, 108, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 106, 106, 106, 106,
-  106, 106, 106, 106, 106, 106, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 104,
-  104, 104, 104, 104, 104, 104, 104, 104, 104, 104, 104, 104, 104, 104, 104, 104, 104, 104, 104, 103, 103, 103, 103, 103, 103,
-  103, 103, 103, 103, 103, 102, 102, 102, 102, 102, 102, 102, 102, 102, 102, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101,
-  100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 99, 99, 99, 99, 99, 99, 99, 99, 99, 98, 98, 98, 98, 98, 98,
-  98, 98, 97, 97, 97, 97, 97, 97, 97, 97, 97, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 95, 95,
-  95, 95, 95, 95, 95, 95, 95, 94, 94, 94, 94, 94, 94, 94, 94, 94, 93, 93, 93, 93, 93, 93, 93, 93, 93,
-  93, 93, 93, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 91, 91,
-  91, 91, 91, 91, 91, 91, 91, 90, 90, 90, 90, 90, 90, 90, 90, 90, 89, 89, 89, 89, 89, 89, 89, 89, 89,
-  89, 88, 88, 88, 88, 88, 88, 88, 88, 87, 87, 87, 87, 87, 87, 86, 86, 86, 86, 86, 86, 86, 86, 86, 86,
-  86, 86, 86, 86, 86, 86, 86, 86, 86, 86, 86, 86, 86, 86, 86, 87, 87, 88, 88, 88, 89, 90, 90, 91, 91,
-  92, 94, 95, 97, 99,
-];
-
-/** Bottom edge of the printed face, one entry per column from X0 to X1. */
-export const MOCKUP_FACE_BOTTOM: number[] = [
-  212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236,
-  237, 238, 239, 240, 241, 242, 243, 244, 245, 245, 245, 245, 245, 245, 245, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246,
-  246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 247, 247, 247, 247, 247, 247, 247, 247, 247, 247, 247, 246, 246,
-  246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 247, 247, 247, 247,
-  247, 247, 247, 247, 247, 247, 247, 247, 247, 247, 247, 247, 247, 247, 247, 247, 247, 248, 248, 248, 248, 248, 248, 248, 248,
-  248, 248, 248, 248, 248, 248, 248, 248, 248, 249, 249, 249, 249, 249, 249, 249, 249, 250, 250, 250, 250, 250, 250, 250, 250,
-  251, 251, 251, 251, 251, 251, 251, 251, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252,
-  252, 252, 252, 252, 252, 252, 252, 252, 253, 253, 253, 253, 253, 253, 253, 253, 253, 253, 253, 253, 253, 253, 253, 253, 253,
-  253, 253, 253, 253, 254, 254, 254, 254, 254, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-  255, 255, 255, 256, 256, 256, 256, 256, 256, 256, 256, 257, 257, 257, 257, 257, 257, 257, 257, 257, 257, 257, 257, 257, 257,
-  257, 257, 257, 257, 257, 257, 257, 258, 258, 258, 258, 258, 258, 258, 258, 258, 258, 258, 258, 258, 258, 258, 258, 258, 258,
-  259, 259, 259, 259, 259, 259, 259, 259, 259, 259, 259, 259, 259, 259, 259, 259, 259, 259, 259, 259, 260, 260, 260, 260, 260,
-  260, 260, 260, 260, 260, 260, 260, 260, 260, 260, 260, 260, 260, 261, 261, 261, 261, 261, 261, 261, 261, 261, 261, 262, 262,
-  262, 262, 262, 262, 262, 262, 262, 262, 262, 262, 262, 262, 262, 262, 262, 263, 263, 263, 263, 263, 263, 263, 263, 263, 263,
-  263, 263, 263, 263, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 265, 265, 265, 265, 265, 265, 265, 265,
-  265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 266, 266, 266, 266, 266, 266, 266, 266, 266, 266, 266, 266, 266, 266, 266,
-  267, 267, 267, 267, 267, 267, 267, 267, 267, 267, 267, 267, 267, 267, 267, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268,
-  268, 268, 268, 268, 268, 268, 268, 267, 267, 267, 267, 267, 267, 266, 266, 266, 265, 265, 264, 264, 263, 262, 262, 261, 260,
-  260, 258, 258, 257, 256,
-];
-
-/*
- * MOCKUP_ART_PIXELS and MOCKUP_ROTATE_RAD are gone on purpose. They described
- * the face as a rotated rectangle, which it is not. If the build fails on one
- * of them, the file named in that error is an outdated component.
- */
+/** Bounding box of the punched-out face, in photo pixels. Measured from the asset. */
+export const MOCKUP_FACE = { x: 340, y: 76, w: 470, h: 198 };
