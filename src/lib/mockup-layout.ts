@@ -1,4 +1,4 @@
-/** Cropped photo of the top tag only (1024×284), straight from the product mockup. */
+/** Cropped photo of the top tag only (1024x284), straight from the product mockup. */
 export const MOCKUP_PHOTO = {
   src: "/keytag-mockup-top.png",
   width: 1024,
@@ -10,52 +10,75 @@ export const MOCKUP_PHOTO_OFFSET_Y = -34;
 export const MOCKUP_CANVAS_PAD_BOTTOM = 36;
 
 /**
- * Where the design canvas lands on the photo.
+ * The printed face of the tag, MEASURED from keytag-mockup-top.png.
  *
- * MEASURED, not estimated. The printed insert was isolated as the hole in the
- * metal body of keytag-mockup-top.png, and its top and bottom edges fitted:
+ * The face was isolated as the enclosed hole in the metal body, then its top
+ * and bottom edge recorded for every column. That is why this is a pair of
+ * arrays rather than a rectangle:
  *
- *   insert spans x 339..810
- *   top edge     y = -0.07104x + 141.08
- *   bottom edge  y =  0.05651x + 214.44
- *   height at left 116.6px, at right 176.7px  -> ratio 0.660
+ *  - the tag is photographed in perspective, so its face is a trapezoid, not a
+ *    rotated rectangle. Scale + rotate can only ever produce a parallelogram,
+ *    which is why no combination of x/y/w/h/rotation ever lined up.
+ *  - the ends are rounded, so straight edges overshoot into the metal at the
+ *    corners.
  *
- * The real tag's left edge is 14.0mm against 19.9mm at the right - ratio 0.704.
- * The photo shows 0.660, so the tag is foreshortened by perspective, roughly 6%
- * at the far end. A scale-and-rotate transform can only produce a parallelogram,
- * never a trapezoid, which is why the mockup never matched the editor no matter
- * how x/y/w/h were adjusted.
+ * Using the measured outline as the destination makes the fit exact by
+ * construction: the artwork is stretched to whatever the real opening is at
+ * each column, corners and perspective included.
  *
- * The quad below is the destination for the four corners of the DESIGN CANVAS
- * (not the tag outline). The left pair is extrapolated along the measured left
- * edge from the tag's own left edge, which sits at canvas y 140..801:
- *
- *   scale along left edge = 116.6 / 661 = 0.176399 px per canvas px
- *   canvas y=0   -> 117.0 - 140 x 0.176399 = 92.30
- *   canvas y=940 -> 117.0 + 800 x 0.176399 = 258.12
- *
- * Coordinates are in the photo's own pixel space; the paint code adds
- * MOCKUP_PHOTO_OFFSET_Y when drawing.
+ * Values are in the photo's own pixel space. The paint code adds
+ * MOCKUP_PHOTO_OFFSET_Y.
  */
-export const MOCKUP_ART_QUAD = {
-  topLeft: { x: 339, y: 92.3 },
-  topRight: { x: 810, y: 83.53 },
-  bottomRight: { x: 810, y: 260.21 },
-  bottomLeft: { x: 339, y: 258.12 },
-};
+export const MOCKUP_FACE_X0 = 339;
+export const MOCKUP_FACE_X1 = 808;
 
-/**
- * Kept for anything still importing it. Derived from the quad's bounding box -
- * do not use it for placement, it cannot represent the perspective.
- *
- * @deprecated use MOCKUP_ART_QUAD
- */
-export const MOCKUP_ART_PIXELS = {
-  x: 339,
-  y: 83,
-  w: 471,
-  h: 177,
-};
+/** Top edge of the printed face, one entry per column from X0 to X1. */
+export const MOCKUP_FACE_TOP: number[] = [
+  121, 121, 120, 120, 119, 119, 118, 118, 117, 117, 117, 117, 116, 116, 116, 116, 115, 115, 115, 115, 115, 115, 115, 115, 115,
+  115, 115, 115, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 113, 113, 113, 113, 113,
+  113, 113, 113, 112, 112, 112, 112, 112, 112, 112, 112, 112, 112, 112, 112, 112, 112, 112, 112, 111, 111, 111, 111, 111, 111,
+  111, 111, 111, 110, 110, 110, 110, 110, 110, 110, 110, 110, 110, 110, 109, 109, 109, 109, 108, 108, 108, 108, 108, 108, 108,
+  108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 107, 107, 107, 107,
+  107, 107, 107, 107, 107, 107, 107, 107, 107, 106, 106, 106, 106, 106, 106, 106, 106, 106, 106, 106, 105, 105, 105, 105, 105,
+  105, 105, 104, 104, 104, 104, 104, 103, 103, 103, 103, 103, 103, 103, 103, 103, 103, 103, 103, 103, 103, 103, 102, 102, 102,
+  102, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101,
+  101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101,
+  101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101,
+  101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 100, 100, 100, 100, 100, 99, 99, 99,
+  99, 99, 99, 99, 99, 99, 99, 99, 99, 98, 98, 98, 98, 98, 98, 98, 98, 98, 98, 98, 98, 97, 97, 97, 96,
+  96, 96, 95, 95, 95, 94, 94, 94, 94, 94, 94, 94, 94, 94, 94, 94, 94, 94, 94, 94, 94, 94, 94, 94, 94,
+  94, 94, 94, 94, 94, 94, 94, 93, 93, 93, 93, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92,
+  92, 92, 92, 92, 92, 92, 91, 91, 90, 90, 89, 89, 89, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88,
+  88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 87, 87, 87,
+  87, 87, 87, 86, 86, 86, 86, 86, 86, 86, 86, 86, 86, 85, 85, 85, 85, 85, 85, 85, 85, 85, 85, 85, 85,
+  84, 84, 84, 83, 83, 82, 82, 82, 81, 81, 81, 81, 81, 81, 82, 82, 82, 83, 84, 84, 85, 85, 86, 86, 87,
+  87, 87, 88, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 98, 102, 106, 110, 114, 118,
+];
 
-/** @deprecated rotation is carried by MOCKUP_ART_QUAD */
+/** Bottom edge of the printed face, one entry per column from X0 to X1. */
+export const MOCKUP_FACE_BOTTOM: number[] = [
+  176, 187, 199, 211, 223, 235, 238, 242, 243, 244, 246, 246, 246, 246, 246, 246, 246, 246, 246, 246, 247, 247, 248, 248, 249,
+  249, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250,
+  250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249,
+  249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249,
+  249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249, 249,
+  249, 249, 249, 250, 250, 250, 250, 250, 251, 251, 251, 251, 251, 251, 251, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252,
+  252, 252, 252, 252, 252, 252, 252, 252, 252, 252, 253, 253, 253, 254, 254, 254, 255, 255, 255, 255, 252, 249, 247, 244, 241,
+  239, 236, 233, 231, 231, 231, 231, 231, 231, 231, 231, 231, 231, 231, 231, 231, 231, 231, 231, 231, 231, 231, 231, 231, 231,
+  231, 231, 231, 231, 231, 234, 237, 239, 242, 245, 248, 250, 253, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
+  256, 256, 256, 256, 256, 256, 256, 257, 257, 257, 257, 257, 258, 258, 258, 258, 258, 258, 258, 258, 258, 258, 258, 258, 258,
+  258, 258, 258, 258, 258, 258, 259, 259, 259, 259, 259, 259, 259, 259, 260, 260, 260, 260, 260, 260, 260, 260, 260, 260, 260,
+  260, 260, 260, 260, 260, 260, 260, 260, 260, 260, 260, 260, 261, 261, 261, 261, 262, 262, 262, 262, 262, 262, 262, 262, 262,
+  262, 263, 263, 263, 263, 263, 263, 263, 263, 263, 263, 263, 263, 263, 263, 263, 264, 264, 264, 264, 265, 265, 265, 265, 265,
+  265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 265, 266, 266, 266,
+  266, 267, 267, 267, 267, 267, 267, 267, 267, 267, 267, 267, 267, 267, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268,
+  268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268,
+  268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268,
+  268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 268, 267, 267, 267, 266, 266, 265, 264, 264,
+  263, 262, 262, 261, 260, 259, 258, 257, 256, 255, 253, 252, 239, 227, 215, 202, 191, 179, 168, 156,
+];
+
+/** @deprecated the face is described by the arrays above */
+export const MOCKUP_ART_PIXELS = { x: 339, y: 83, w: 470, h: 177 };
+/** @deprecated perspective is carried by the measured outline */
 export const MOCKUP_ROTATE_RAD = 0;
