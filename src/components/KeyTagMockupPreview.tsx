@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type RefObject, type MutableRefObject } from "react";
-import { CANVAS_H, CANVAS_W, getTagMetrics } from "@/lib/keytag-shape";
+import { CANVAS_H, CANVAS_W, getTagMetrics, PRINTABLE_INSET_MM } from "@/lib/keytag-shape";
 import {
   MOCKUP_ART_PIXELS,
   MOCKUP_CANVAS_PAD_BOTTOM,
@@ -78,7 +78,9 @@ export default function KeyTagMockupPreview({
     ctx.translate(-w, -h);
     ctx.scale(w / CANVAS_W, h / CANVAS_H);
     const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
-    metrics.drawGeometry(ctx);
+    // Clip to the inner edge of the red guide band, so the mockup shows exactly
+    // the area that will be printed — not the trim margin the band covers.
+    metrics.drawGeometry(ctx, PRINTABLE_INSET_MM);
     ctx.clip();
     ctx.drawImage(content, 0, 0);
     ctx.restore();
