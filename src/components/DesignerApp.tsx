@@ -11,9 +11,10 @@ import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
 import {
   drawBorderLayer,
   drawContentLayer,
-  mergedPreviewDataUrl,
   payloadForSubmit,
+  preloadAllImages,
   preloadImage,
+  printFileDataUrl,
 } from "@/lib/canvas-render";
 import { scaleImageUniform } from "@/lib/canvas-gestures";
 import { useCanvasGestures } from "@/hooks/useCanvasGestures";
@@ -22,6 +23,42 @@ import { parseLocale, t } from "@/lib/i18n";
 import { QR_PANEL_WIDTH_RATIO } from "@/lib/qrcode-render";
 
 const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
+
+/**
+ * Two strings that were hardcoded in English and so never translated.
+ * Kept here rather than in i18n.ts to avoid touching shared files.
+ */
+const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string }> = {
+  de: {
+    qrHint:
+      "Aktivieren Sie dieses Feld, um einen QR-Code hinzuzufügen, und geben Sie anschließend Ihre Website ein — für einen scanbaren QR-Code zu Ihrer Website.",
+    scaleHint: "Bild wird eingepasst. Mit + / − können Sie die Größe ändern.",
+  },
+  fr: {
+    qrHint:
+      "Cochez cette case pour ajouter un QR code, puis saisissez votre site web dans le champ qui apparaît, pour un QR code scannable vers votre site.",
+    scaleHint: "Image ajustée. Utilisez les boutons + / − pour redimensionner.",
+  },
+  it: {
+    qrHint:
+      "Seleziona questa casella per aggiungere un codice QR, poi inserisci il tuo sito web nel campo che appare, per un codice QR scansionabile.",
+    scaleHint: "Immagine adattata. Usa i pulsanti + / − per ridimensionare.",
+  },
+  es: {
+    qrHint:
+      "Marque esta casilla para añadir un código QR y luego escriba su sitio web en el campo que aparece, para un código QR escaneable.",
+    scaleHint: "Imagen ajustada. Use los botones + / − para cambiar el tamaño.",
+  },
+  en: {
+    qrHint:
+      "Check this box to add a QR code and then add your website to the box that appears, for a scannable QR Code to your website.",
+    scaleHint: "Image scaled to fit. Use + / − buttons to resize.",
+  },
+};
+
+function extraStrings(locale: string) {
+  return EXTRA_STRINGS[locale] || EXTRA_STRINGS.en;
+}
 const AI_SLOT_COUNT = 3;
 
 // The WordPress shop. Cart, quantity, pricing and payment all live there.
@@ -38,6 +75,7 @@ export default function DesignerApp() {
   const searchParams = useSearchParams();
   const locale = useMemo(() => parseLocale(searchParams.get("lang")), [searchParams]);
   const labels = t(locale);
+  const extra = useMemo(() => extraStrings(String(locale)), [locale]);
   const embed = searchParams.get("embed") === "1";
   const contentCanvasRef = useRef<HTMLCanvasElement>(null);
   const borderCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -47,6 +85,7 @@ export default function DesignerApp() {
   const textLinesRef = useRef<TextLine[]>([]);
   const selectedBgIdRef = useRef<string | null>(null);
   const imagesBeforeQrRef = useRef<DesignImage[]>([]);
+  const mockupCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [tagColor, setTagColor] = useState("#1f1f1f");
   const [images, setImages] = useState<DesignImage[]>([]);
@@ -143,7 +182,6 @@ export default function DesignerApp() {
       return { ok: false, error: "no_image" };
     }
 
-    const previewDataUrl = mergedPreviewDataUrl(canvas, border, "image/jpeg");
     const finalQrUrl = qrEnabled && qrUrl.trim() && !qrUrl.startsWith("http") ? `https://${qrUrl}` : qrUrl;
 
     const raw: DesignPayload = {
@@ -157,11 +195,29 @@ export default function DesignerApp() {
 
     const payload = await payloadForSubmit(raw, imageCache.current);
 
+    // payloadForSubmit rewrites image URLs, so they must be re-cached before
+    // the print file is drawn — otherwise the artwork renders blank.
+    await preloadAllImages(payload.images, imageCache.current);
+
+    // Production artwork: the real tag, no red guide border, 1200 DPI.
+    const printDataUrl = await printFileDataUrl(payload, imageCache.current);
+
+    // Reference mockup: how the tag will look in the customer's hand.
+    let mockupDataUrl = "";
+    try {
+      if (mockupCanvasRef.current) {
+        mockupDataUrl = mockupCanvasRef.current.toDataURL("image/jpeg", 0.9);
+      }
+    } catch {
+      /* mockup is optional */
+    }
+
     const res = await fetch(`${SHOP_ORIGIN}/wp-json/bik/v1/save-design`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        image: previewDataUrl,
+        image: printDataUrl,
+        mockup: mockupDataUrl,
         designJson: payload,
         tagColor: tagColorRef.current,
         locale,
@@ -433,6 +489,7 @@ export default function DesignerApp() {
           </div>
         )}
         <KeyTagMockupPreview
+          outputRef={mockupCanvasRef}
           contentCanvasRef={contentCanvasRef}
           active={true}
           revision={mockupRevision}
@@ -463,7 +520,7 @@ export default function DesignerApp() {
 
         <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", width: "100%", flexWrap: "wrap" }}>
           <input type="checkbox" checked={qrEnabled} onChange={(e) => setQrEnabled(e.target.checked)} style={{ marginTop: "2px", flexShrink: 0 }} />
-          <span style={{ fontWeight: "bold", fontSize: "14px", flex: 1, minWidth: 0 }}>Check this box to add a QR code and then add your website to the box that appears, for a scannable QR Code to your website.</span>
+          <span style={{ fontWeight: "bold", fontSize: "14px", flex: 1, minWidth: 0 }}>{extra.qrHint}</span>
         </div>
 
         <div className="field">
@@ -475,7 +532,7 @@ export default function DesignerApp() {
           />
         </div>
         <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
-          Image scaled to fit. Use + / − buttons to resize.
+          {extra.scaleHint}
         </p>
 
         {showText &&
