@@ -27,7 +27,17 @@ export type DesignPayload = {
   textLines: TextLine[];
   backgroundImageId: string | null;
   fitMode?: "auto" | "manual";
-  qrCode?: { enabled: boolean; url: string };
+  qrCode?: {
+    enabled: boolean;
+    url: string;
+    /** Centre point, in canvas px. Defaults to the old right-hand position. */
+    x?: number;
+    y?: number;
+    /** Width/height of the QR square, in canvas px. */
+    size?: number;
+    /** Module colour. Light modules are transparent — no backing panel. */
+    color?: string;
+  };
 };
 
 import { CANVAS_H, CANVAS_W } from "./keytag-shape";

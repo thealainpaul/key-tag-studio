@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
-import { fitCoverInFrame, fitContainInArea } from "@/lib/design";
+import { fitCoverInFrame } from "@/lib/design";
 import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
 import KeyTagMockupPreview from "@/components/KeyTagMockupPreview";
 import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
@@ -18,11 +18,21 @@ import {
 } from "@/lib/canvas-render";
 import { scaleImageUniform } from "@/lib/canvas-gestures";
 import { useCanvasGestures } from "@/hooks/useCanvasGestures";
-import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
+import { CANVAS_H, CANVAS_W, mmToPx } from "@/lib/keytag-shape";
 import { parseLocale, t } from "@/lib/i18n";
-import { QR_PANEL_WIDTH_RATIO } from "@/lib/qrcode-render";
+import {
+  clampQrSize,
+  QR_DEFAULT_PX,
+  QR_MAX_PX,
+  QR_MIN_PX,
+  qrDefaultCenter,
+  qrModuleSizeMm,
+} from "@/lib/qrcode-render";
 
 const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
+
+/** Canvas pixels per millimetre — used for the QR size readout. */
+const mmPx = mmToPx(1);
 
 /**
  * Two strings that were hardcoded in English and so never translated.
@@ -84,7 +94,6 @@ export default function DesignerApp() {
   const imagesRef = useRef<DesignImage[]>([]);
   const textLinesRef = useRef<TextLine[]>([]);
   const selectedBgIdRef = useRef<string | null>(null);
-  const imagesBeforeQrRef = useRef<DesignImage[]>([]);
   const mockupCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [tagColor, setTagColor] = useState("#1f1f1f");
@@ -106,6 +115,10 @@ export default function DesignerApp() {
   const [mockupRevision, setMockupRevision] = useState(0);
   const [qrEnabled, setQrEnabled] = useState(false);
   const [qrUrl, setQrUrl] = useState("");
+  const [qrSize, setQrSize] = useState(QR_DEFAULT_PX);
+  const [qrX, setQrX] = useState(() => qrDefaultCenter(QR_DEFAULT_PX).x);
+  const [qrY, setQrY] = useState(() => qrDefaultCenter(QR_DEFAULT_PX).y);
+  const [qrColor, setQrColor] = useState("#000000");
   const tagColorRef = useRef(tagColor);
 
   imagesRef.current = images;
@@ -113,16 +126,33 @@ export default function DesignerApp() {
   selectedBgIdRef.current = selectedBgId;
   tagColorRef.current = tagColor;
 
+  const qrCodeState = useMemo(
+    () => ({
+      enabled: qrEnabled,
+      url: qrUrl.startsWith("http") ? qrUrl : qrUrl ? `https://${qrUrl}` : "",
+      x: qrX,
+      y: qrY,
+      size: qrSize,
+      color: qrColor,
+    }),
+    [qrEnabled, qrUrl, qrX, qrY, qrSize, qrColor]
+  );
+
+  const qrCodeStateRef = useRef(qrCodeState);
+  qrCodeStateRef.current = qrCodeState;
+
+  const qrModuleMm = useMemo(
+    () => (qrEnabled && qrUrl.trim() ? qrModuleSizeMm(qrCodeState.url, qrSize) : 0),
+    [qrEnabled, qrUrl, qrCodeState.url, qrSize]
+  );
+
   const redrawContent = useCallback(
     (nextImages = imagesRef.current, nextTextLines = textLinesRef.current, nextTagColor = tagColor) => {
       const canvas = contentCanvasRef.current;
       if (!canvas) return;
-      drawContentLayer(canvas, nextTagColor, nextImages, nextTextLines, imageCache.current, {
-        enabled: qrEnabled,
-        url: qrUrl.startsWith("http") ? qrUrl : qrUrl ? `https://${qrUrl}` : "",
-      });
+      drawContentLayer(canvas, nextTagColor, nextImages, nextTextLines, imageCache.current, qrCodeStateRef.current);
     },
-    [tagColor, qrEnabled, qrUrl]
+    [tagColor]
   );
 
   useLayoutEffect(() => {
@@ -136,22 +166,7 @@ export default function DesignerApp() {
   useEffect(() => {
     redrawContent();
     setMockupRevision((r) => r + 1);
-  }, [tagColor, images, textLines, qrEnabled, qrUrl, redrawContent]);
-
-  useEffect(() => {
-    if (qrEnabled) {
-      imagesBeforeQrRef.current = images;
-      const panelWidth = Math.round(CANVAS_W * QR_PANEL_WIDTH_RATIO);
-      const areaWidth = CANVAS_W - panelWidth;
-      setImages((prev) =>
-        prev.map((img) => ({ ...img, ...fitContainInArea(img.width, img.height, 0, 0, areaWidth, CANVAS_H) }))
-      );
-    } else {
-      if (imagesBeforeQrRef.current.length > 0) {
-        setImages(imagesBeforeQrRef.current);
-      }
-    }
-  }, [qrEnabled]);
+  }, [tagColor, images, textLines, qrCodeState, redrawContent]);
 
   useCanvasGestures({
     canvasRef: contentCanvasRef,
@@ -190,7 +205,7 @@ export default function DesignerApp() {
       textLines: textLinesRef.current,
       backgroundImageId: selectedBgIdRef.current,
       fitMode,
-      qrCode: { enabled: qrEnabled, url: finalQrUrl },
+      qrCode: { enabled: qrEnabled, url: finalQrUrl, x: qrX, y: qrY, size: qrSize, color: qrColor },
     };
 
     const payload = await payloadForSubmit(raw, imageCache.current);
@@ -231,7 +246,7 @@ export default function DesignerApp() {
     }
 
     return { ok: true, designId: data.design_id };
-  }, [fitMode, qrEnabled, qrUrl, locale]);
+  }, [fitMode, qrEnabled, qrUrl, qrX, qrY, qrSize, qrColor, locale]);
 
   /**
    * Listen for instructions from the WordPress page.
@@ -531,6 +546,77 @@ export default function DesignerApp() {
             onChange={(e) => setQrUrl(e.target.value)}
           />
         </div>
+
+        {qrEnabled && qrUrl.trim() && (
+          <div className="qr-controls">
+            <label className="qr-row">
+              <span>Size</span>
+              <input
+                type="range"
+                min={QR_MIN_PX}
+                max={QR_MAX_PX}
+                step={1}
+                value={qrSize}
+                onChange={(e) => setQrSize(clampQrSize(Number(e.target.value)))}
+              />
+              <span className="qr-value">{(qrSize / mmPx).toFixed(1)} mm</span>
+            </label>
+
+            <label className="qr-row">
+              <span>Left / right</span>
+              <input
+                type="range"
+                min={0}
+                max={CANVAS_W}
+                step={1}
+                value={qrX}
+                onChange={(e) => setQrX(Number(e.target.value))}
+              />
+              <span className="qr-value" />
+            </label>
+
+            <label className="qr-row">
+              <span>Up / down</span>
+              <input
+                type="range"
+                min={0}
+                max={CANVAS_H}
+                step={1}
+                value={qrY}
+                onChange={(e) => setQrY(Number(e.target.value))}
+              />
+              <span className="qr-value" />
+            </label>
+
+            <div className="qr-row">
+              <span>Colour</span>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <button
+                  type="button"
+                  className={`btn secondary compact${qrColor === "#000000" ? " selected" : ""}`}
+                  onClick={() => setQrColor("#000000")}
+                >
+                  Black
+                </button>
+                <button
+                  type="button"
+                  className={`btn secondary compact${qrColor === "#ffffff" ? " selected" : ""}`}
+                  onClick={() => setQrColor("#ffffff")}
+                >
+                  White
+                </button>
+              </div>
+              <span className="qr-value" />
+            </div>
+
+            {qrModuleMm > 0 && qrModuleMm < 0.5 && (
+              <p className="qr-warn">
+                At this size each QR square is {qrModuleMm.toFixed(2)} mm. Below 0.5 mm the code may not scan
+                reliably on a domed tag — make it larger, or use a shorter web address.
+              </p>
+            )}
+          </div>
+        )}
         <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
           {extra.scaleHint}
         </p>

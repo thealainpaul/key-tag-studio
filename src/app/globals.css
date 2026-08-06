@@ -307,3 +307,48 @@ label { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(-
 .container { max-width: 1400px; margin: 0 auto; padding: 1rem; }
 .grid-2 { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 1rem; align-items: start; }
 .btn.danger { background: var(--danger); }
+
+/* QR position / size controls */
+.qr-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.65rem;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+}
+
+.qr-row {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr 4.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.qr-row input[type="range"] {
+  width: 100%;
+  min-width: 0;
+}
+
+.qr-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #555;
+}
+
+.qr-warn {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: #a33;
+}
+
+@media (max-width: 480px) {
+  .qr-row {
+    grid-template-columns: 4.5rem 1fr 3.75rem;
+    font-size: 0.8rem;
+  }
+}

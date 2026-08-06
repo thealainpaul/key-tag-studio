@@ -1,6 +1,6 @@
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
 import { CANVAS_H, CANVAS_W, drawKeyTagBorder, drawKeyTagFill, getTagMetrics, PRINT_DPI } from "@/lib/keytag-shape";
-import { drawQrPanel, QR_PANEL_WIDTH_RATIO } from "@/lib/qrcode-render";
+import { drawQr, QR_DEFAULT_PX, qrDefaultCenter } from "@/lib/qrcode-render";
 import { embedPngDpi } from "@/lib/png-dpi";
 
 /** Enough for print (tag is ~2173px wide) without huge phone-photo payloads. */
@@ -39,7 +39,7 @@ export function drawContentLayer(
   images: DesignImage[],
   textLines: TextLine[],
   cache: Map<string, HTMLImageElement>,
-  qrCode?: { enabled: boolean; url: string }
+  qrCode?: DesignPayload["qrCode"]
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -74,13 +74,21 @@ export function drawContentLayer(
     ctx.fillText(line.text, line.x, line.y);
   });
 
-  // QR code panel — drawn last so it sits on top
+  // QR — drawn last so it sits on top of artwork and text
   if (qrCode?.enabled && qrCode.url.trim()) {
-    const panelWidth = Math.round(CANVAS_W * QR_PANEL_WIDTH_RATIO);
+    const size = qrCode.size ?? QR_DEFAULT_PX;
+    const fallback = qrDefaultCenter(size);
     ctx.save();
     metrics.drawGeometry(ctx, 0);
     ctx.clip();
-    drawQrPanel(ctx, qrCode.url, CANVAS_W - panelWidth, 0, panelWidth, CANVAS_H);
+    drawQr(
+      ctx,
+      qrCode.url,
+      qrCode.x ?? fallback.x,
+      qrCode.y ?? fallback.y,
+      size,
+      qrCode.color ?? "#000000"
+    );
     ctx.restore();
   }
 }
