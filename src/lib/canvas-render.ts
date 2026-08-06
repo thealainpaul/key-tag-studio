@@ -87,7 +87,8 @@ export function drawContentLayer(
       qrCode.x ?? fallback.x,
       qrCode.y ?? fallback.y,
       size,
-      qrCode.color ?? "#000000"
+      qrCode.color ?? "#000000",
+      qrCode.halo ?? true
     );
     ctx.restore();
   }

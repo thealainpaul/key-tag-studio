@@ -37,6 +37,8 @@ export type DesignPayload = {
     size?: number;
     /** Module colour. Light modules are transparent — no backing panel. */
     color?: string;
+    /** Soft quiet-zone glow behind the code. Off = nothing behind the modules. */
+    halo?: boolean;
   };
 };
 

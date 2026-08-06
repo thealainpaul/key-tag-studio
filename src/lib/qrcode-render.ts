@@ -10,8 +10,12 @@ export const QR_PANEL_WIDTH_RATIO = 0.32;
  */
 const QR_ECC_LEVEL = "Q" as const;
 
-/** Below this the modules get too fine for a phone camera on a domed surface. */
-export const QR_MIN_MM = 12;
+/**
+ * Hard floor. Set to match the reference tags, whose codes measure ~8mm.
+ * Small codes are a real scan risk on a domed surface — the UI warns when the
+ * module size drops below 0.5mm rather than blocking it.
+ */
+export const QR_MIN_MM = 6;
 export const QR_DEFAULT_MM = 15;
 
 /** ISO 18004 requires 4 clear modules around the code. */
@@ -75,9 +79,11 @@ function roundedRect(
 }
 
 /**
- * Free-floating QR — no backing panel. The quiet zone is a soft halo of the
- * opposite tone rather than a hard white box, which satisfies "no background"
- * without leaving the scanner nothing to lock onto.
+ * Free-floating QR — no backing panel. With halo on, the quiet zone is a soft
+ * glow of the opposite tone rather than a hard white box. With halo off the
+ * artwork shows through completely between the modules, which is what the
+ * reference tags do — scan reliability then rests entirely on the artwork
+ * behind it being plain enough.
  */
 export function drawQr(
   ctx: CanvasRenderingContext2D,
@@ -85,7 +91,8 @@ export function drawQr(
   centerX: number,
   centerY: number,
   size: number,
-  color: string
+  color: string,
+  halo = true
 ) {
   const trimmed = url.trim();
   if (!trimmed) return;
@@ -103,18 +110,20 @@ export function drawQr(
   const left = centerX - qrSize / 2;
   const top = centerY - qrSize / 2;
 
-  // Halo: light behind dark modules, dark behind light ones.
-  const haloIsLight = relativeLuminance(color) < 0.5;
-  const haloColor = haloIsLight ? "255,255,255" : "0,0,0";
+  if (halo) {
+    // Light behind dark modules, dark behind light ones.
+    const haloIsLight = relativeLuminance(color) < 0.5;
+    const haloColor = haloIsLight ? "255,255,255" : "0,0,0";
 
-  ctx.save();
-  ctx.globalAlpha = QUIET_ZONE_ALPHA;
-  ctx.fillStyle = `rgb(${haloColor})`;
-  ctx.shadowColor = `rgba(${haloColor},${QUIET_ZONE_ALPHA})`;
-  ctx.shadowBlur = moduleSize * 3;
-  roundedRect(ctx, left - quiet, top - quiet, qrSize + quiet * 2, qrSize + quiet * 2, quiet);
-  ctx.fill();
-  ctx.restore();
+    ctx.save();
+    ctx.globalAlpha = QUIET_ZONE_ALPHA;
+    ctx.fillStyle = `rgb(${haloColor})`;
+    ctx.shadowColor = `rgba(${haloColor},${QUIET_ZONE_ALPHA})`;
+    ctx.shadowBlur = moduleSize * 3;
+    roundedRect(ctx, left - quiet, top - quiet, qrSize + quiet * 2, qrSize + quiet * 2, quiet);
+    ctx.fill();
+    ctx.restore();
+  }
 
   ctx.save();
   ctx.fillStyle = color;

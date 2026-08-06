@@ -119,6 +119,7 @@ export default function DesignerApp() {
   const [qrX, setQrX] = useState(() => qrDefaultCenter(QR_DEFAULT_PX).x);
   const [qrY, setQrY] = useState(() => qrDefaultCenter(QR_DEFAULT_PX).y);
   const [qrColor, setQrColor] = useState("#000000");
+  const [qrHalo, setQrHalo] = useState(true);
   const tagColorRef = useRef(tagColor);
 
   imagesRef.current = images;
@@ -134,8 +135,9 @@ export default function DesignerApp() {
       y: qrY,
       size: qrSize,
       color: qrColor,
+      halo: qrHalo,
     }),
-    [qrEnabled, qrUrl, qrX, qrY, qrSize, qrColor]
+    [qrEnabled, qrUrl, qrX, qrY, qrSize, qrColor, qrHalo]
   );
 
   const qrCodeStateRef = useRef(qrCodeState);
@@ -205,7 +207,7 @@ export default function DesignerApp() {
       textLines: textLinesRef.current,
       backgroundImageId: selectedBgIdRef.current,
       fitMode,
-      qrCode: { enabled: qrEnabled, url: finalQrUrl, x: qrX, y: qrY, size: qrSize, color: qrColor },
+      qrCode: { enabled: qrEnabled, url: finalQrUrl, x: qrX, y: qrY, size: qrSize, color: qrColor, halo: qrHalo },
     };
 
     const payload = await payloadForSubmit(raw, imageCache.current);
@@ -246,7 +248,7 @@ export default function DesignerApp() {
     }
 
     return { ok: true, designId: data.design_id };
-  }, [fitMode, qrEnabled, qrUrl, qrX, qrY, qrSize, qrColor, locale]);
+  }, [fitMode, qrEnabled, qrUrl, qrX, qrY, qrSize, qrColor, qrHalo, locale]);
 
   /**
    * Listen for instructions from the WordPress page.
@@ -604,6 +606,14 @@ export default function DesignerApp() {
                   onClick={() => setQrColor("#ffffff")}
                 >
                   White
+                </button>
+                <button
+                  type="button"
+                  className={`btn secondary compact${!qrHalo ? " selected" : ""}`}
+                  onClick={() => setQrHalo((v) => !v)}
+                  title="Removes the soft backing behind the code — artwork shows through completely"
+                >
+                  Transparent
                 </button>
               </div>
               <span className="qr-value" />
