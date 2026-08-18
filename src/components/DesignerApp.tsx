@@ -11,6 +11,7 @@ import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
 import {
   drawBorderLayer,
   drawContentLayer,
+  fullSourceDataUrl,
   payloadForSubmit,
   preloadAllImages,
   preloadImage,
@@ -38,31 +39,41 @@ const mmPx = mmToPx(1);
  * Two strings that were hardcoded in English and so never translated.
  * Kept here rather than in i18n.ts to avoid touching shared files.
  */
-const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string }> = {
+const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHint: string }> = {
   de: {
     qrHint:
       "Aktivieren Sie dieses Feld, um einen QR-Code hinzuzufügen, und geben Sie anschließend Ihre Website ein — für einen scanbaren QR-Code zu Ihrer Website.",
     scaleHint: "Bild wird eingepasst. Mit + / − können Sie die Größe ändern.",
+    forMeHint:
+      "Wir gestalten es für Sie — laden Sie Ihr Bild hoch oder erstellen Sie eines mit KI, und wir setzen es für Sie ein.",
   },
   fr: {
     qrHint:
       "Cochez cette case pour ajouter un QR code, puis saisissez votre site web dans le champ qui apparaît, pour un QR code scannable vers votre site.",
     scaleHint: "Image ajustée. Utilisez les boutons + / − pour redimensionner.",
+    forMeHint:
+      "Nous le concevons pour vous — téléchargez votre image ou créez-en une avec l\u2019IA, et nous la placerons pour vous.",
   },
   it: {
     qrHint:
       "Seleziona questa casella per aggiungere un codice QR, poi inserisci il tuo sito web nel campo che appare, per un codice QR scansionabile.",
     scaleHint: "Immagine adattata. Usa i pulsanti + / − per ridimensionare.",
+    forMeHint:
+      "Lo progettiamo noi per te — carica la tua immagine o creane una con l\u2019IA e la posizioneremo noi per te.",
   },
   es: {
     qrHint:
       "Marque esta casilla para añadir un código QR y luego escriba su sitio web en el campo que aparece, para un código QR escaneable.",
     scaleHint: "Imagen ajustada. Use los botones + / − para cambiar el tamaño.",
+    forMeHint:
+      "Lo diseñamos por usted — suba su imagen o cree una con IA y la colocaremos por usted.",
   },
   en: {
     qrHint:
       "Check this box to add a QR code and then add your website to the box that appears, for a scannable QR Code to your website.",
     scaleHint: "Image scaled to fit. Use + / − buttons to resize.",
+    forMeHint:
+      "Design it for me — upload your image or create one with AI, and we will place it on the tag for you.",
   },
 };
 
@@ -95,6 +106,12 @@ export default function DesignerApp() {
   const textLinesRef = useRef<TextLine[]>([]);
   const selectedBgIdRef = useRef<string | null>(null);
   const mockupCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  /**
+   * The customer's source image exactly as it arrived — before fitCoverInFrame
+   * cropped it to the tag. Only submitted when "design it for me" is ticked.
+   */
+  const fullSourceRef = useRef<string | null>(null);
+  const designForMeRef = useRef(false);
 
   const [tagColor, setTagColor] = useState("#1f1f1f");
   const [images, setImages] = useState<DesignImage[]>([]);
@@ -111,6 +128,7 @@ export default function DesignerApp() {
   const [aiSeeds, setAiSeeds] = useState<number[]>([]);
   const [message, setMessage] = useState("");
   const [fitMode, setFitMode] = useState<"auto" | "manual">("manual");
+  const [designForMe, setDesignForMe] = useState(false);
   const [canvasReady, setCanvasReady] = useState(false);
   const [mockupRevision, setMockupRevision] = useState(0);
   const [qrEnabled, setQrEnabled] = useState(false);
@@ -126,6 +144,7 @@ export default function DesignerApp() {
   textLinesRef.current = textLines;
   selectedBgIdRef.current = selectedBgId;
   tagColorRef.current = tagColor;
+  designForMeRef.current = designForMe;
 
   const qrCodeState = useMemo(
     () => ({
@@ -207,6 +226,7 @@ export default function DesignerApp() {
       textLines: textLinesRef.current,
       backgroundImageId: selectedBgIdRef.current,
       fitMode,
+      designForMe: designForMeRef.current,
       qrCode: { enabled: qrEnabled, url: finalQrUrl, x: qrX, y: qrY, size: qrSize, color: qrColor, halo: qrHalo },
     };
 
@@ -229,12 +249,25 @@ export default function DesignerApp() {
       /* mockup is optional */
     }
 
+    // Third file, only when the customer asked BIK to do the design: the whole
+    // source picture, uncropped, so it can be placed in the editor by hand.
+    let fullSource = "";
+    if (designForMeRef.current && fullSourceRef.current) {
+      try {
+        fullSource = await fullSourceDataUrl(fullSourceRef.current);
+      } catch {
+        /* the order must still go through without it */
+      }
+    }
+
     const res = await fetch(`${SHOP_ORIGIN}/wp-json/bik/v1/save-design`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         image: printDataUrl,
         mockup: mockupDataUrl,
+        fullSource,
+        designForMe: designForMeRef.current,
         designJson: payload,
         tagColor: tagColorRef.current,
         locale,
@@ -369,6 +402,8 @@ export default function DesignerApp() {
   async function onUpload(file: File) {
     const dataUrl = await fileToDataUrl(file);
     const image = await preloadImage(dataUrl, imageCache.current);
+    // Kept before any cropping, so "design it for me" submits the whole picture.
+    fullSourceRef.current = dataUrl;
     await addUploadedImage(dataUrl, image.naturalWidth, image.naturalHeight);
     setFitMode("auto");
   }
@@ -419,6 +454,8 @@ export default function DesignerApp() {
   }
 
   async function pickAiImage(url: string) {
+    // The generated image at its full dimensions, before it is fitted to the tag.
+    fullSourceRef.current = url;
     await addAiImage(url);
     setFitMode("manual");
     setAiOpen(false);
@@ -533,6 +570,16 @@ export default function DesignerApp() {
           <button className="btn secondary compact" onClick={addTextLine}>
             {labels.addText}
           </button>
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", width: "100%", flexWrap: "wrap" }}>
+          <input
+            type="checkbox"
+            checked={designForMe}
+            onChange={(e) => setDesignForMe(e.target.checked)}
+            style={{ marginTop: "2px", flexShrink: 0 }}
+          />
+          <span style={{ fontWeight: "bold", fontSize: "14px", flex: 1, minWidth: 0 }}>{extra.forMeHint}</span>
         </div>
 
         <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", width: "100%", flexWrap: "wrap" }}>

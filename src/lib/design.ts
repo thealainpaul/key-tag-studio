@@ -27,6 +27,11 @@ export type DesignPayload = {
   textLines: TextLine[];
   backgroundImageId: string | null;
   fitMode?: "auto" | "manual";
+  /**
+   * Customer ticked "design it for me". When true the studio also submits the
+   * full-size source image, so BIK can place it in the editor on their behalf.
+   */
+  designForMe?: boolean;
   qrCode?: {
     enabled: boolean;
     url: string;
