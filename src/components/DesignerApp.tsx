@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
-import { fitCoverInFrame } from "@/lib/design";
+import { fitCoverInFrame, fitCoverInFrameRotated } from "@/lib/design";
 import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
 import KeyTagMockupPreview from "@/components/KeyTagMockupPreview";
 import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
@@ -16,6 +16,7 @@ import {
   preloadAllImages,
   preloadImage,
   printFileDataUrl,
+  rotatedMockupDataUrl,
 } from "@/lib/canvas-render";
 import { scaleImageUniform } from "@/lib/canvas-gestures";
 import { useCanvasGestures } from "@/hooks/useCanvasGestures";
@@ -39,41 +40,51 @@ const mmPx = mmToPx(1);
  * Two strings that were hardcoded in English and so never translated.
  * Kept here rather than in i18n.ts to avoid touching shared files.
  */
-const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHint: string }> = {
+const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHint: string; verticalHint: string }> = {
   de: {
     qrHint:
-      "Aktivieren Sie dieses Feld, um einen QR-Code hinzuzufügen, und geben Sie anschließend Ihre Website ein — für einen scanbaren QR-Code zu Ihrer Website.",
+      "Kreuzen Sie dieses Feld an, wenn Sie einen QR-Code möchten, geben Sie dann Ihre URL unten ein und passen Sie Position und Farben mit den Steuerelementen darunter an.",
     scaleHint: "Bild wird eingepasst. Mit + / − können Sie die Größe ändern.",
     forMeHint:
-      "Wir gestalten es für Sie — laden Sie Ihr Bild hoch oder erstellen Sie eines mit KI, und wir setzen es für Sie ein.",
+      "Kreuzen Sie dieses Feld an, wenn wir es für Sie machen sollen. (Laden Sie dann einfach ein Bild hoch und senden Sie Ihre Bestellung ab.)",
+    verticalHint:
+      "Kreuzen Sie dieses Feld an für einen vertikalen Editor und Mockup. (Editor im Hochformat)",
   },
   fr: {
     qrHint:
-      "Cochez cette case pour ajouter un QR code, puis saisissez votre site web dans le champ qui apparaît, pour un QR code scannable vers votre site.",
+      "Cochez cette case si vous souhaitez un QR code, puis ajoutez votre URL ci-dessous et ajustez la position et les couleurs avec les commandes en dessous.",
     scaleHint: "Image ajustée. Utilisez les boutons + / − pour redimensionner.",
     forMeHint:
-      "Nous le concevons pour vous — téléchargez votre image ou créez-en une avec l\u2019IA, et nous la placerons pour vous.",
+      "Cochez cette case si vous souhaitez que nous le fassions pour vous. (Téléchargez simplement une image et envoyez votre commande.)",
+    verticalHint:
+      "Cochez cette case pour un éditeur et un mockup verticaux. (Éditeur à la verticale)",
   },
   it: {
     qrHint:
-      "Seleziona questa casella per aggiungere un codice QR, poi inserisci il tuo sito web nel campo che appare, per un codice QR scansionabile.",
+      "Seleziona questa casella se desideri un codice QR, poi aggiungi il tuo URL qui sotto e regola posizione e colori con i controlli in basso.",
     scaleHint: "Immagine adattata. Usa i pulsanti + / − per ridimensionare.",
     forMeHint:
-      "Lo progettiamo noi per te — carica la tua immagine o creane una con l\u2019IA e la posizioneremo noi per te.",
+      "Seleziona questa casella se vuoi che lo facciamo noi per te. (Carica semplicemente un'immagine e invia il tuo ordine.)",
+    verticalHint:
+      "Seleziona questa casella per un editor e un mockup verticali. (Editor in verticale)",
   },
   es: {
     qrHint:
-      "Marque esta casilla para añadir un código QR y luego escriba su sitio web en el campo que aparece, para un código QR escaneable.",
+      "Marque esta casilla si desea un código QR, luego añada su URL abajo y ajuste la posición y los colores con los controles inferiores.",
     scaleHint: "Imagen ajustada. Use los botones + / − para cambiar el tamaño.",
     forMeHint:
-      "Lo diseñamos por usted — suba su imagen o cree una con IA y la colocaremos por usted.",
+      "Marque esta casilla si desea que lo hagamos por usted. (Solo suba una imagen y envíe su pedido.)",
+    verticalHint:
+      "Marque esta casilla para un editor y un mockup verticales. (Editor en vertical)",
   },
   en: {
     qrHint:
-      "Check this box to add a QR code and then add your website to the box that appears, for a scannable QR Code to your website.",
+      "Tick this box if you want a QR code, then add your URL below and adjust the position and colors with the controls below.",
     scaleHint: "Image scaled to fit. Use + / − buttons to resize.",
     forMeHint:
-      "Design it for me — upload your image or create one with AI, and we will place it on the tag for you.",
+      "Tick this box if you want us to do it for you. (Then simply upload an image and send in your order.)",
+    verticalHint:
+      "Tick this box to get a vertical editor and Mockup. (Editor that is upright)",
   },
 };
 
@@ -112,6 +123,8 @@ export default function DesignerApp() {
    */
   const fullSourceRef = useRef<string | null>(null);
   const designForMeRef = useRef(false);
+  /** Read by the gesture hook, which needs it without re-subscribing. */
+  const portraitRef = useRef(false);
 
   const [tagColor, setTagColor] = useState("#1f1f1f");
   const [images, setImages] = useState<DesignImage[]>([]);
@@ -129,6 +142,7 @@ export default function DesignerApp() {
   const [message, setMessage] = useState("");
   const [fitMode, setFitMode] = useState<"auto" | "manual">("manual");
   const [designForMe, setDesignForMe] = useState(false);
+  const [portrait, setPortrait] = useState(false);
   const [canvasReady, setCanvasReady] = useState(false);
   const [mockupRevision, setMockupRevision] = useState(0);
   const [qrEnabled, setQrEnabled] = useState(false);
@@ -145,6 +159,7 @@ export default function DesignerApp() {
   selectedBgIdRef.current = selectedBgId;
   tagColorRef.current = tagColor;
   designForMeRef.current = designForMe;
+  portraitRef.current = portrait;
 
   const qrCodeState = useMemo(
     () => ({
@@ -193,6 +208,7 @@ export default function DesignerApp() {
     canvasRef: contentCanvasRef,
     touchTargetRef: previewStackRef,
     enabled: canvasReady,
+    portraitRef,
     imagesRef,
     textLinesRef,
     selectedBgIdRef,
@@ -227,6 +243,7 @@ export default function DesignerApp() {
       backgroundImageId: selectedBgIdRef.current,
       fitMode,
       designForMe: designForMeRef.current,
+      orientation: portraitRef.current ? "portrait" : "landscape",
       qrCode: { enabled: qrEnabled, url: finalQrUrl, x: qrX, y: qrY, size: qrSize, color: qrColor, halo: qrHalo },
     };
 
@@ -239,14 +256,20 @@ export default function DesignerApp() {
     // Production artwork: the real tag, no red guide border, 1200 DPI.
     const printDataUrl = await printFileDataUrl(payload, imageCache.current);
 
-    // Reference mockup: how the tag will look in the customer's hand.
+    // Reference mockup: how the tag looks in the customer's hand. Always
+    // landscape, because that is the physical tag.
     let mockupDataUrl = "";
+    // On a vertical order the customer also gets it upright, as they designed it.
+    let mockupUprightDataUrl = "";
     try {
       if (mockupCanvasRef.current) {
         mockupDataUrl = mockupCanvasRef.current.toDataURL("image/jpeg", 0.9);
+        if (portraitRef.current) {
+          mockupUprightDataUrl = rotatedMockupDataUrl(mockupCanvasRef.current);
+        }
       }
     } catch {
-      /* mockup is optional */
+      /* mockups are optional */
     }
 
     // Third file, only when the customer asked BIK to do the design: the whole
@@ -266,6 +289,7 @@ export default function DesignerApp() {
       body: JSON.stringify({
         image: printDataUrl,
         mockup: mockupDataUrl,
+        mockupUpright: mockupUprightDataUrl,
         fullSource,
         designForMe: designForMeRef.current,
         designJson: payload,
@@ -378,24 +402,40 @@ export default function DesignerApp() {
     });
   }
 
+  /**
+   * There is only ever ONE image on the tag. Adding a new one replaces whatever
+   * was there — previously each addition stacked on top of the last and the old
+   * one only disappeared on a page refresh.
+   *
+   * In portrait the canvas is still landscape underneath, so the image is laid
+   * on its side (rotation -90) and fitted against swapped dimensions. Seen
+   * through the clockwise display rotation, it reads upright.
+   */
   async function addUploadedImage(dataUrl: string, naturalW: number, naturalH: number) {
-    const placement = fitCoverInFrame(naturalW, naturalH);
+    const upright = portraitRef.current;
+    const placement = upright
+      ? fitCoverInFrameRotated(naturalW, naturalH)
+      : fitCoverInFrame(naturalW, naturalH);
     const img: DesignImage = {
       id: uid(),
       url: dataUrl,
       originalUrl: dataUrl,
       ...placement,
-      rotation: 0,
+      rotation: upright ? -90 : 0,
     };
-    setImages((prev) => [...prev, img]);
+    setImages([img]);
     setSelectedBgId(img.id);
   }
 
   async function addAiImage(url: string) {
     const image = await preloadImage(url, imageCache.current);
-    const placement = fitCoverInFrame(image.naturalWidth, image.naturalHeight);
-    const img: DesignImage = { id: uid(), url, ...placement, rotation: 0 };
-    setImages((prev) => [...prev, img]);
+    const upright = portraitRef.current;
+    const placement = upright
+      ? fitCoverInFrameRotated(image.naturalWidth, image.naturalHeight)
+      : fitCoverInFrame(image.naturalWidth, image.naturalHeight);
+    // Replaces the existing image rather than layering over it.
+    const img: DesignImage = { id: uid(), url, ...placement, rotation: upright ? -90 : 0 };
+    setImages([img]);
     setSelectedBgId(img.id);
   }
 
@@ -426,7 +466,10 @@ export default function DesignerApp() {
       const res = await fetch("/api/designer/generate-background", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: aiPrompt }),
+        body: JSON.stringify({
+          prompt: aiPrompt,
+          orientation: portraitRef.current ? "portrait" : "landscape",
+        }),
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -496,8 +539,8 @@ export default function DesignerApp() {
       </div>
 
       <div className="preview-panel">
-        <div className="preview-wrap">
-          <div className="preview-stack" ref={previewStackRef}>
+        <div className={`preview-wrap${portrait ? " portrait" : ""}`}>
+          <div className={`preview-stack${portrait ? " portrait" : ""}`} ref={previewStackRef}>
             {!canvasReady && <KeyTagPlaceholder />}
             <canvas
               ref={contentCanvasRef}
@@ -521,13 +564,23 @@ export default function DesignerApp() {
           <p>{labels.hintRed}</p>
           {images.length > 0 && <p>{labels.hintGestures}</p>}
         </div>
-        {images.length > 0 && (
+        {/*
+          Size bar is always present — it used to appear only once an image
+          existed, which made the row jump as soon as one was added. The
+          vertical toggle shares the row and must not move.
+        */}
+        <div className="editor-controls-row">
+          <label className="checkbox-row inline">
+            <input type="checkbox" checked={portrait} onChange={(e) => setPortrait(e.target.checked)} />
+            <span>{extra.verticalHint}</span>
+          </label>
           <div className="image-scale-bar">
             <button
               type="button"
               className="btn secondary compact"
               onClick={() => scaleActiveImage(0.9)}
               aria-label={labels.smaller}
+              disabled={images.length === 0}
             >
               −
             </button>
@@ -537,11 +590,12 @@ export default function DesignerApp() {
               className="btn secondary compact"
               onClick={() => scaleActiveImage(1.1)}
               aria-label={labels.larger}
+              disabled={images.length === 0}
             >
               +
             </button>
           </div>
-        )}
+        </div>
         <KeyTagMockupPreview
           outputRef={mockupCanvasRef}
           contentCanvasRef={contentCanvasRef}
@@ -572,20 +626,15 @@ export default function DesignerApp() {
           </button>
         </div>
 
-        <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", width: "100%", flexWrap: "wrap" }}>
-          <input
-            type="checkbox"
-            checked={designForMe}
-            onChange={(e) => setDesignForMe(e.target.checked)}
-            style={{ marginTop: "2px", flexShrink: 0 }}
-          />
-          <span style={{ fontWeight: "bold", fontSize: "14px", flex: 1, minWidth: 0 }}>{extra.forMeHint}</span>
-        </div>
+        <label className="checkbox-row">
+          <input type="checkbox" checked={designForMe} onChange={(e) => setDesignForMe(e.target.checked)} />
+          <span>{extra.forMeHint}</span>
+        </label>
 
-        <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", width: "100%", flexWrap: "wrap" }}>
-          <input type="checkbox" checked={qrEnabled} onChange={(e) => setQrEnabled(e.target.checked)} style={{ marginTop: "2px", flexShrink: 0 }} />
-          <span style={{ fontWeight: "bold", fontSize: "14px", flex: 1, minWidth: 0 }}>{extra.qrHint}</span>
-        </div>
+        <label className="checkbox-row">
+          <input type="checkbox" checked={qrEnabled} onChange={(e) => setQrEnabled(e.target.checked)} />
+          <span>{extra.qrHint}</span>
+        </label>
 
         <div className="field">
           <input

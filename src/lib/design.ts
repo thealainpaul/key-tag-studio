@@ -32,6 +32,13 @@ export type DesignPayload = {
    * full-size source image, so BIK can place it in the editor on their behalf.
    */
   designForMe?: boolean;
+  /**
+   * How the customer was working. Design coordinates are ALWAYS stored in the
+   * tag's native landscape space regardless — "portrait" only changes what the
+   * customer sees and how images sit within that space, so the print file the
+   * manufacturer receives never changes shape.
+   */
+  orientation?: "landscape" | "portrait";
   qrCode?: {
     enabled: boolean;
     url: string;
@@ -52,6 +59,20 @@ import { CANVAS_H, CANVAS_W } from "./keytag-shape";
 /** Wide banner — similar proportions to the key tag. */
 export const AI_GEN_W = 1280;
 export const AI_GEN_H = Math.round(AI_GEN_W / (46.0 / 19.9));
+
+/** Portrait equivalent — the same pixels, tall instead of wide. */
+export const AI_GEN_PORTRAIT_W = AI_GEN_H;
+export const AI_GEN_PORTRAIT_H = AI_GEN_W;
+
+/**
+ * The AI must be told which shape it is composing into. Asked for a wide banner
+ * and shown upright, the subject ends up cropped away.
+ */
+export function aiPromptSuffix(orientation: "landscape" | "portrait"): string {
+  return orientation === "portrait"
+    ? "tall vertical banner photo, subject upright, realistic"
+    : "wide horizontal banner photo, subject on its side, realistic";
+}
 
 /** Short Pollinations URL. Long URLs were causing failed requests. */
 export function makePollinationsUrl(
@@ -131,6 +152,26 @@ export function naturalCenterPlacement(naturalW: number, naturalH: number) {
     y: (CANVAS_H - naturalH) / 2,
     width: naturalW,
     height: naturalH,
+  };
+}
+
+/**
+ * Cover the frame with the image turned 90 degrees.
+ *
+ * Used when the customer works upright. The canvas stays landscape, so an
+ * upright picture must lie on its side within it to read upright on screen.
+ * Rotation happens about the image centre, so centring the unrotated box also
+ * centres the rotated footprint — only the cover scale accounts for the swap.
+ */
+export function fitCoverInFrameRotated(naturalW: number, naturalH: number) {
+  const scale = Math.max(CANVAS_W / naturalH, CANVAS_H / naturalW);
+  const width = naturalW * scale;
+  const height = naturalH * scale;
+  return {
+    x: (CANVAS_W - width) / 2,
+    y: (CANVAS_H - height) / 2,
+    width,
+    height,
   };
 }
 

@@ -289,3 +289,21 @@ export async function payloadForSubmit(
   );
   return { ...payload, images };
 }
+/**
+ * The mockup turned upright, for the second image emailed on a vertical order.
+ *
+ * The mockup canvas is always drawn landscape. Rotating it clockwise
+ * puts the ring hole at the top, which is how the customer designed it. The
+ * landscape original is still sent alongside this one.
+ */
+export function rotatedMockupDataUrl(source: HTMLCanvasElement): string {
+  const out = document.createElement("canvas");
+  out.width = source.height;
+  out.height = source.width;
+  const ctx = out.getContext("2d");
+  if (!ctx) return source.toDataURL("image/jpeg", 0.9);
+  ctx.translate(out.width / 2, out.height / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(source, -source.width / 2, -source.height / 2);
+  return out.toDataURL("image/jpeg", 0.9);
+}

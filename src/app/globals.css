@@ -352,3 +352,72 @@ label { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(-
     font-size: 0.8rem;
   }
 }
+
+/* ── Checkbox rows: box first, label beside it, never stacked ── */
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  cursor: pointer;
+}
+
+.checkbox-row.inline {
+  width: auto;
+  flex: 1 1 260px;
+  min-width: 220px;
+}
+
+.checkbox-row input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  cursor: pointer;
+}
+
+.checkbox-row span {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: bold;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+/* Vertical toggle shares a row with the size buttons. */
+.editor-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.editor-controls-row .image-scale-bar {
+  margin-top: 0;
+}
+
+/*
+ * Portrait editor.
+ *
+ * The canvas keeps its native landscape pixel dimensions - only the display is
+ * rotated, clockwise, so the ring hole ends up at the top. The wrapper
+ * gets an explicit portrait aspect-ratio because a rotated element still
+ * occupies its ORIGINAL box in layout and would otherwise overlap the hints
+ * below it.
+ */
+.preview-wrap.portrait {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 19.9 / 46;
+}
+
+.preview-stack.portrait {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(100% * 46 / 19.9);
+  transform: translate(-50%, -50%) rotate(90deg);
+  transform-origin: center center;
+}
