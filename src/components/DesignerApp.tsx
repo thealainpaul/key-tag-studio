@@ -378,6 +378,51 @@ export default function DesignerApp() {
     }
   }, [images.length]);
 
+  /**
+   * Tell WordPress how tall this page actually is.
+   *
+   * An iframe's height is set by the PARENT document and can never be set by
+   * its own content, so no CSS in here can make the embed grow — which is why
+   * a fixed, over-large height was the only workaround available before. The
+   * page measures itself instead and the parent applies the number, so the
+   * embed grows for the vertical editor and shrinks back for the horizontal
+   * one, with no inner scrollbar and no dead space at the bottom.
+   */
+  useEffect(() => {
+    let last = 0;
+
+    function report() {
+      const doc = document.documentElement;
+      const height = Math.ceil(
+        Math.max(doc.scrollHeight, doc.offsetHeight, document.body ? document.body.scrollHeight : 0)
+      );
+      // A one-pixel jitter would otherwise loop: resize -> report -> resize.
+      if (!height || Math.abs(height - last) < 2) return;
+      last = height;
+      try {
+        window.parent.postMessage({ type: "bik_height", height }, "*");
+      } catch {
+        /* ignore */
+      }
+    }
+
+    report();
+
+    const observer = new ResizeObserver(report);
+    observer.observe(document.documentElement);
+    if (document.body) observer.observe(document.body);
+
+    // Images and fonts settle after first paint and change the height.
+    window.addEventListener("load", report);
+    const settle = window.setTimeout(report, 400);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("load", report);
+      window.clearTimeout(settle);
+    };
+  }, []);
+
   /** Announce readiness once on load. */
   useEffect(() => {
     try {
