@@ -1,4 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  AI_GEN_H,
+  AI_GEN_PORTRAIT_H,
+  AI_GEN_PORTRAIT_W,
+  AI_GEN_W,
+  aiPromptSuffix,
+} from "@/lib/design";
+
+type Orientation = "landscape" | "portrait";
 
 export const maxDuration = 60;
 
@@ -26,10 +35,19 @@ async function retryWithBackoff<T>(
   throw lastError || new Error("All retry attempts failed");
 }
 
-async function generateImage(prompt: string, seed: number, apiKey: string): Promise<string> {
-  const text = `${prompt.trim()}, wide horizontal banner photo, subject on its side, realistic`;
+async function generateImage(
+  prompt: string,
+  seed: number,
+  apiKey: string,
+  orientation: Orientation
+): Promise<string> {
+  const text = `${prompt.trim()}, ${aiPromptSuffix(orientation)}`;
   const encoded = encodeURIComponent(text);
-  const url = `https://gen.pollinations.ai/image/${encoded}?width=1280&height=539&seed=${seed}&model=flux&nologo=true&key=${apiKey}`;
+  // Upright tag means an upright picture — asking for a wide banner and then
+  // showing it vertically crops the subject away.
+  const w = orientation === "portrait" ? AI_GEN_PORTRAIT_W : AI_GEN_W;
+  const h = orientation === "portrait" ? AI_GEN_PORTRAIT_H : AI_GEN_H;
+  const url = `https://gen.pollinations.ai/image/${encoded}?width=${w}&height=${h}&seed=${seed}&model=flux&nologo=true&key=${apiKey}`;
 
   return retryWithBackoff(async () => {
     const res = await fetch(url, {
@@ -44,7 +62,8 @@ async function generateImage(prompt: string, seed: number, apiKey: string): Prom
 }
 
 export async function POST(req: NextRequest) {
-  const { prompt } = await req.json();
+  const { prompt, orientation: rawOrientation } = await req.json();
+  const orientation: Orientation = rawOrientation === "portrait" ? "portrait" : "landscape";
   if (!prompt?.trim()) return NextResponse.json({ success: false, error: "Please enter a description" }, { status: 400 });
 
   const apiKey = process.env.POLLINATIONS_API_KEY;
@@ -53,7 +72,9 @@ export async function POST(req: NextRequest) {
   const baseSeed = Math.floor(Math.random() * 900_000) + 1000;
   const baseId = Date.now();
 
-  const results = await Promise.allSettled([0, 1, 2].map((i) => generateImage(prompt, baseSeed + i * 50_000, apiKey)));
+  const results = await Promise.allSettled(
+    [0, 1, 2].map((i) => generateImage(prompt, baseSeed + i * 50_000, apiKey, orientation))
+  );
 
   const images = results.map((r, i) => ({ id: `ai-${baseId}-${i}`, url: r.status === "fulfilled" ? r.value : null }));
 

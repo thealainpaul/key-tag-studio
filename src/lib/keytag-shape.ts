@@ -11,6 +11,19 @@ export const PRINT_DPI = KEYTAG_SPECS.dpi * KEYTAG_SPECS.scale;
 /** Width of the red guide border, in millimetres. */
 export const BORDER_WIDTH_MM = 2;
 
+/**
+ * Print bleed, in millimetres, added OUTWARD on every side of the production
+ * file. The tag artwork keeps its exact 46.0 x 19.9 mm size; the canvas grows
+ * around it, so the file handed to the manufacturer is larger than the tag.
+ *
+ * 2 mm matches BORDER_WIDTH_MM, so the red band in the exported file is the
+ * same thickness the customer saw in the editor. The flat-paper industry
+ * standard is 3 mm, but on a 19.9 mm tall tag that would throw away ~30% of the
+ * file; 1-2 mm is normal for die-cut work at this scale. Change this one value
+ * if the printer asks for a different figure.
+ */
+export const BLEED_MM = 2;
+
 export function mmToPx(mm: number, dpi = KEYTAG_SPECS.dpi, scale = KEYTAG_SPECS.scale) {
   return Math.round((mm / 25.4) * dpi * scale);
 }
@@ -19,6 +32,11 @@ export const CANVAS_W = mmToPx(KEYTAG_SPECS.designAreaMm.width);
 export const CANVAS_H = mmToPx(KEYTAG_SPECS.designAreaMm.height);
 export const SAFE_W = mmToPx(KEYTAG_SPECS.safeAreaMm.width);
 export const SAFE_H = mmToPx(KEYTAG_SPECS.safeAreaMm.height);
+
+/** Bleed in canvas px, and the resulting production-file dimensions. */
+export const BLEED_PX = mmToPx(BLEED_MM);
+export const BLEED_CANVAS_W = CANVAS_W + BLEED_PX * 2;
+export const BLEED_CANVAS_H = CANVAS_H + BLEED_PX * 2;
 
 /**
  * The tag face, MEASURED from keytag-mockup-top.png and held as fractions of

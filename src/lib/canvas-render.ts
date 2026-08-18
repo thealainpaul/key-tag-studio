@@ -1,5 +1,17 @@
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
-import { CANVAS_H, CANVAS_W, drawKeyTagBorder, drawKeyTagFill, getTagMetrics, PRINT_DPI } from "@/lib/keytag-shape";
+import {
+  BLEED_CANVAS_H,
+  BLEED_CANVAS_W,
+  BLEED_PX,
+  CANVAS_H,
+  CANVAS_W,
+  drawKeyTagBorder,
+  getTagMetrics,
+  PRINT_DPI,
+} from "@/lib/keytag-shape";
+
+/** Same red as the editor's guide border. */
+const BLEED_COLOR = "#ef4444";
 import { drawQr, QR_DEFAULT_PX, qrDefaultCenter } from "@/lib/qrcode-render";
 import { embedPngDpi } from "@/lib/png-dpi";
 
@@ -33,21 +45,27 @@ export async function preloadAllImages(images: DesignImage[], cache: Map<string,
   }
 }
 
-export function drawContentLayer(
-  canvas: HTMLCanvasElement,
+/**
+ * Paints tag fill, artwork, text and QR into the current context, at the
+ * context's current origin. Does NOT resize or clear the canvas — callers own
+ * that, so the same paint can be dropped onto a plain canvas or onto one that
+ * has already been offset and pre-painted with a bleed band.
+ */
+function paintTagContent(
+  ctx: CanvasRenderingContext2D,
   tagColor: string,
   images: DesignImage[],
   textLines: TextLine[],
   cache: Map<string, HTMLImageElement>,
   qrCode?: DesignPayload["qrCode"]
 ) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
 
-  canvas.width = CANVAS_W;
-  canvas.height = CANVAS_H;
-
-  const metrics = drawKeyTagFill(ctx, CANVAS_W, CANVAS_H, tagColor);
+  ctx.save();
+  metrics.drawGeometry(ctx, 0);
+  ctx.fillStyle = tagColor;
+  ctx.fill();
+  ctx.restore();
 
   for (const item of images) {
     const image = cache.get(item.url);
@@ -94,6 +112,66 @@ export function drawContentLayer(
   }
 }
 
+/** Editor / mockup preview layer — tag-sized canvas, no bleed. */
+export function drawContentLayer(
+  canvas: HTMLCanvasElement,
+  tagColor: string,
+  images: DesignImage[],
+  textLines: TextLine[],
+  cache: Map<string, HTMLImageElement>,
+  qrCode?: DesignPayload["qrCode"]
+) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  canvas.width = CANVAS_W;
+  canvas.height = CANVAS_H;
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+
+  paintTagContent(ctx, tagColor, images, textLines, cache, qrCode);
+}
+
+/**
+ * Production print layer — the tag at its exact size, on a canvas grown by
+ * BLEED_MM on every side, with the red bleed band filling that outer ring.
+ *
+ * The band is stroked centred on the tag outline at twice the bleed width, so
+ * it covers BLEED_MM outside and BLEED_MM inside. The artwork is then painted
+ * on top, clipped to the outline, which overpaints the inner half. What is left
+ * is a red ring exactly BLEED_MM wide sitting wholly outside the tag — the tag
+ * artwork itself is never scaled down or encroached on.
+ */
+export function drawPrintLayer(
+  canvas: HTMLCanvasElement,
+  tagColor: string,
+  images: DesignImage[],
+  textLines: TextLine[],
+  cache: Map<string, HTMLImageElement>,
+  qrCode?: DesignPayload["qrCode"]
+) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  canvas.width = BLEED_CANVAS_W;
+  canvas.height = BLEED_CANVAS_H;
+  ctx.clearRect(0, 0, BLEED_CANVAS_W, BLEED_CANVAS_H);
+
+  ctx.save();
+  ctx.translate(BLEED_PX, BLEED_PX);
+
+  const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
+  ctx.save();
+  metrics.drawGeometry(ctx, 0);
+  ctx.strokeStyle = BLEED_COLOR;
+  ctx.lineWidth = BLEED_PX * 2;
+  ctx.stroke();
+  ctx.restore();
+
+  paintTagContent(ctx, tagColor, images, textLines, cache, qrCode);
+
+  ctx.restore();
+}
+
 export function drawBorderLayer(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -135,13 +213,18 @@ export async function imageUrlToDataUrl(url: string, cache: Map<string, HTMLImag
   return canvas.toDataURL("image/jpeg", SUBMIT_JPEG_QUALITY);
 }
 
-/** Production print file — tag artwork only, no red guide border, 1200 DPI tagged. */
+/**
+ * Production print file for the manufacturer — tag artwork at full size with
+ * the red bleed band added outward, 1200 DPI tagged.
+ *
+ * The customer-facing mockup is a separate file and is unaffected by this.
+ */
 export async function printFileBlob(
   payload: DesignPayload,
   cache: Map<string, HTMLImageElement>
 ): Promise<Blob> {
   const canvas = document.createElement("canvas");
-  drawContentLayer(canvas, payload.tagColor, payload.images, payload.textLines, cache, payload.qrCode);
+  drawPrintLayer(canvas, payload.tagColor, payload.images, payload.textLines, cache, payload.qrCode);
   const raw = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!raw) throw new Error("PNG export failed");
   const tagged = embedPngDpi(new Uint8Array(await raw.arrayBuffer()), PRINT_DPI);
@@ -177,6 +260,22 @@ export function downloadDataUrl(dataUrl: string, filename: string) {
   link.click();
 }
 
+/**
+ * Source image for "design it for me", passed through EXACTLY as the customer
+ * supplied it — no resizing, no re-encoding. BIK does design work from this
+ * file, so it must be the untouched original.
+ *
+ * NOTE: the ceiling on this is the WordPress server's post_max_size /
+ * upload_max_filesize. That figure is not declared anywhere in the plugin
+ * source and has not been measured, so no downscale threshold is applied here —
+ * any threshold would be invented rather than derived. If large uploads start
+ * failing, read that server value first; the limit belongs here once it is a
+ * known number.
+ */
+export async function fullSourceDataUrl(dataUrl: string): Promise<string> {
+  return dataUrl;
+}
+
 export async function payloadForSubmit(
   payload: DesignPayload,
   cache: Map<string, HTMLImageElement>
@@ -189,4 +288,22 @@ export async function payloadForSubmit(
     })
   );
   return { ...payload, images };
+}
+/**
+ * The mockup turned upright, for the second image emailed on a vertical order.
+ *
+ * The mockup canvas is always drawn landscape. Rotating it clockwise
+ * puts the ring hole at the top, which is how the customer designed it. The
+ * landscape original is still sent alongside this one.
+ */
+export function rotatedMockupDataUrl(source: HTMLCanvasElement): string {
+  const out = document.createElement("canvas");
+  out.width = source.height;
+  out.height = source.width;
+  const ctx = out.getContext("2d");
+  if (!ctx) return source.toDataURL("image/jpeg", 0.9);
+  ctx.translate(out.width / 2, out.height / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(source, -source.width / 2, -source.height / 2);
+  return out.toDataURL("image/jpeg", 0.9);
 }

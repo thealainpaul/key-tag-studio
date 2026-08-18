@@ -10,6 +10,8 @@ type Options = {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   touchTargetRef?: React.RefObject<HTMLElement | null>;
   enabled?: boolean;
+  /** True while the editor is displayed rotated 90 degrees counter-clockwise. */
+  portraitRef?: React.MutableRefObject<boolean>;
   imagesRef: React.MutableRefObject<DesignImage[]>;
   textLinesRef: React.MutableRefObject<TextLine[]>;
   selectedBgIdRef: React.MutableRefObject<string | null>;
@@ -26,6 +28,7 @@ export function useCanvasGestures({
   canvasRef,
   touchTargetRef,
   enabled = true,
+  portraitRef,
   imagesRef,
   textLinesRef,
   selectedBgIdRef,
@@ -39,14 +42,27 @@ export function useCanvasGestures({
   const pinchRef = useRef<PinchState | null>(null);
   const pointersRef = useRef(new Map<number, PointerPoint>());
 
+  /**
+   * Screen point to canvas point.
+   *
+   * In portrait the canvas is displayed rotated 90 degrees CLOCKWISE, which is
+   * the direction that puts the ring hole at the top — measured against the
+   * mockup asset, not assumed. The browser then reports an axis-aligned box
+   * whose width is the canvas's height and vice versa. Clockwise maps canvas
+   * (u, v) to screen (1 - v, u); inverting gives u = v', v = 1 - u'. Without
+   * this the pointer lands on the wrong axis and drags run sideways.
+   */
   function canvasPoint(clientX: number, clientY: number) {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    return {
-      x: ((clientX - rect.left) / rect.width) * CANVAS_W,
-      y: ((clientY - rect.top) / rect.height) * CANVAS_H,
-    };
+    const u = (clientX - rect.left) / rect.width;
+    const v = (clientY - rect.top) / rect.height;
+
+    if (portraitRef?.current) {
+      return { x: v * CANVAS_W, y: (1 - u) * CANVAS_H };
+    }
+    return { x: u * CANVAS_W, y: v * CANVAS_H };
   }
 
   function activeImage() {
@@ -223,7 +239,7 @@ export function useCanvasGestures({
       touchTarget.removeEventListener("pointercancel", onPointerUp);
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [enabled, canvasRef, touchTargetRef, redrawContent, onImagesChange, onTextLinesChange, onSelectText]);
+  }, [enabled, canvasRef, touchTargetRef, portraitRef, redrawContent, onImagesChange, onTextLinesChange, onSelectText]);
 
   return {
     beginDrag,
