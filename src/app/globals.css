@@ -58,25 +58,42 @@ button, input, select, textarea { font: inherit; }
   justify-content: center;
 }
 
+/*
+ * The BORDER canvas is now the sizing element, because it is the larger of the
+ * two: tag 2173x940 plus 94px of bleed on every side = 2361x1128. The artwork
+ * canvas is inset within it.
+ *
+ * Width is 108.6516% (= 2361/2173) so the TAG keeps exactly the on-screen size
+ * it had before the bleed was moved outside it. Scaling the editor up is what
+ * keeps the artwork area a true mirror of the mockup below; letting the stack
+ * stay at 100% would shrink the tag by 8%.
+ */
 .preview-stack {
   position: relative;
-  width: 100%;
-  max-width: 100%;
+  width: 108.6516%;
+  max-width: 108.6516%;
+  margin: 0 auto;
   touch-action: none;
 }
 
+/* Sits over the artwork area only - same inset as .preview-content. */
 .preview-placeholder {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: auto;
+  left: 3.9814%;
+  top: 8.3333%;
+  width: 92.0373%;
+  height: 83.3333%;
   display: block;
   pointer-events: none;
 }
 
+/* Inset by exactly the bleed: 94/2361 across, 94/1128 down. */
 .preview-content {
-  width: 100%;
-  height: auto;
+  position: absolute;
+  left: 3.9814%;
+  top: 8.3333%;
+  width: 92.0373%;
+  height: 83.3333%;
   display: block;
   touch-action: none;
   cursor: grab;
@@ -86,11 +103,12 @@ button, input, select, textarea { font: inherit; }
 
 .preview-content:active { cursor: grabbing; }
 
+/* The sizing element. Its intrinsic 2361x1128 ratio sets the stack height. */
 .preview-border {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
   pointer-events: none;
 }
 
@@ -410,19 +428,20 @@ label { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(-
 .preview-wrap.portrait {
   position: relative;
   width: 100%;
-  /* 1:1 because the stack keeps 100% width; rotated, that width becomes the
-     height. The tag's own 19.9/46 ratio here reserved 2006px for an 868px tag
-     and left 569px of dead space above and below - measured, not guessed. */
-  aspect-ratio: 1 / 1;
+  /* Rotated, the stack's WIDTH becomes its height - so the wrapper's height
+     must equal the stack width, which is 108.6516% of the wrapper. Hence
+     1 / 1.086516. The tag's own 19.9/46 ratio here reserved 2006px for an
+     868px tag and left 569px of dead space - measured, not guessed. */
+  aspect-ratio: 1 / 1.086516;
 }
 
 .preview-stack.portrait {
   position: absolute;
   top: 50%;
   left: 50%;
-  /* Do NOT widen: the base .preview-stack rule carries max-width:100%, which
-     silently clamps anything larger and breaks the height match above. */
-  width: 100%;
+  /* Inherits the base 108.6516%. Changing it here breaks the wrapper ratio
+     above, which is derived from exactly this number. */
+  width: 108.6516%;
   transform: translate(-50%, -50%) rotate(90deg);
   transform-origin: center center;
 }

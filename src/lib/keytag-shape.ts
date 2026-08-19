@@ -134,11 +134,23 @@ export function drawKeyTagFill(
  * is the trim margin — the printable area is what sits inside it, which is what
  * the hint text tells the customer. The mockup clips to the same inner edge.
  */
-export function drawKeyTagBorder(ctx: CanvasRenderingContext2D, metrics: TagMetrics) {
+/** Default frame colour, used until an image supplies one. */
+export const FRAME_COLOR_DEFAULT = "#ef4444";
+
+export function drawKeyTagBorder(
+  ctx: CanvasRenderingContext2D,
+  metrics: TagMetrics,
+  color: string = FRAME_COLOR_DEFAULT
+) {
   ctx.save();
   metrics.drawGeometry(ctx, 0);
-  ctx.strokeStyle = "#ef4444";
+  ctx.strokeStyle = color;
   ctx.lineWidth = Math.round(BORDER_WIDTH_MM * metrics.mmToPx);
+  // Round, NOT the default miter. A miter join projects outward at the tag's
+  // acute corners and measured 2.725mm there against a 2mm target - a 36%
+  // bulge. Round caps the perpendicular thickness at half the line width, so
+  // the band is uniform the whole way around. Measured, not assumed.
+  ctx.lineJoin = "round";
   ctx.stroke();
   ctx.restore();
 }

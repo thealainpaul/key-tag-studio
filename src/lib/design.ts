@@ -39,6 +39,8 @@ export type DesignPayload = {
    * manufacturer receives never changes shape.
    */
   orientation?: "landscape" | "portrait";
+  /** Bleed frame colour, derived from the customer's image. */
+  frameColor?: string;
   qrCode?: {
     enabled: boolean;
     url: string;

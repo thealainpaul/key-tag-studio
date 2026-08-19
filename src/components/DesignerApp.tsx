@@ -11,6 +11,7 @@ import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
 import {
   drawBorderLayer,
   drawContentLayer,
+  frameColorForImage,
   fullSourceDataUrl,
   payloadForSubmit,
   preloadAllImages,
@@ -20,7 +21,7 @@ import {
 } from "@/lib/canvas-render";
 import { scaleImageUniform } from "@/lib/canvas-gestures";
 import { useCanvasGestures } from "@/hooks/useCanvasGestures";
-import { CANVAS_H, CANVAS_W, mmToPx } from "@/lib/keytag-shape";
+import { CANVAS_H, CANVAS_W, FRAME_COLOR_DEFAULT, mmToPx } from "@/lib/keytag-shape";
 import { parseLocale, t } from "@/lib/i18n";
 import {
   clampQrSize,
@@ -125,6 +126,7 @@ export default function DesignerApp() {
   const designForMeRef = useRef(false);
   /** Read by the gesture hook, which needs it without re-subscribing. */
   const portraitRef = useRef(false);
+  const frameColorRef = useRef(FRAME_COLOR_DEFAULT);
 
   const [tagColor, setTagColor] = useState("#1f1f1f");
   const [images, setImages] = useState<DesignImage[]>([]);
@@ -143,6 +145,7 @@ export default function DesignerApp() {
   const [fitMode, setFitMode] = useState<"auto" | "manual">("manual");
   const [designForMe, setDesignForMe] = useState(false);
   const [portrait, setPortrait] = useState(false);
+  const [frameColor, setFrameColor] = useState(FRAME_COLOR_DEFAULT);
   const [canvasReady, setCanvasReady] = useState(false);
   const [mockupRevision, setMockupRevision] = useState(0);
   const [qrEnabled, setQrEnabled] = useState(false);
@@ -160,6 +163,7 @@ export default function DesignerApp() {
   tagColorRef.current = tagColor;
   designForMeRef.current = designForMe;
   portraitRef.current = portrait;
+  frameColorRef.current = frameColor;
 
   const qrCodeState = useMemo(
     () => ({
@@ -195,9 +199,16 @@ export default function DesignerApp() {
     const content = contentCanvasRef.current;
     const border = borderCanvasRef.current;
     if (content) drawContentLayer(content, tagColor, [], [], imageCache.current, { enabled: false, url: "" });
-    if (border) drawBorderLayer(border);
+    if (border) drawBorderLayer(border, frameColorRef.current);
     setCanvasReady(true);
   }, []);
+
+  // The band is a separate canvas from the artwork, so a colour change has to
+  // repaint it explicitly - the content redraw below does not touch it.
+  useEffect(() => {
+    const border = borderCanvasRef.current;
+    if (border) drawBorderLayer(border, frameColor);
+  }, [frameColor]);
 
   useEffect(() => {
     redrawContent();
@@ -244,6 +255,7 @@ export default function DesignerApp() {
       fitMode,
       designForMe: designForMeRef.current,
       orientation: portraitRef.current ? "portrait" : "landscape",
+      frameColor: frameColorRef.current,
       qrCode: { enabled: qrEnabled, url: finalQrUrl, x: qrX, y: qrY, size: qrSize, color: qrColor, halo: qrHalo },
     };
 
@@ -489,6 +501,7 @@ export default function DesignerApp() {
     const image = await preloadImage(dataUrl, imageCache.current);
     // Kept before any cropping, so "design it for me" submits the whole picture.
     fullSourceRef.current = dataUrl;
+    setFrameColor(frameColorForImage(image));
     await addUploadedImage(dataUrl, image.naturalWidth, image.naturalHeight);
     setFitMode("auto");
   }
@@ -544,6 +557,11 @@ export default function DesignerApp() {
   async function pickAiImage(url: string) {
     // The generated image at its full dimensions, before it is fitted to the tag.
     fullSourceRef.current = url;
+    try {
+      setFrameColor(frameColorForImage(await preloadImage(url, imageCache.current)));
+    } catch {
+      /* keep the previous frame colour */
+    }
     await addAiImage(url);
     setFitMode("manual");
     setAiOpen(false);

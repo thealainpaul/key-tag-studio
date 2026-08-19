@@ -6,12 +6,11 @@ import {
   CANVAS_H,
   CANVAS_W,
   drawKeyTagBorder,
+  FRAME_COLOR_DEFAULT,
   getTagMetrics,
   PRINT_DPI,
 } from "@/lib/keytag-shape";
 
-/** Same red as the editor's guide border. */
-const BLEED_COLOR = "#ef4444";
 import { drawQr, QR_DEFAULT_PX, qrDefaultCenter } from "@/lib/qrcode-render";
 import { embedPngDpi } from "@/lib/png-dpi";
 
@@ -147,7 +146,8 @@ export function drawPrintLayer(
   images: DesignImage[],
   textLines: TextLine[],
   cache: Map<string, HTMLImageElement>,
-  qrCode?: DesignPayload["qrCode"]
+  qrCode?: DesignPayload["qrCode"],
+  frameColor: string = FRAME_COLOR_DEFAULT
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -162,8 +162,11 @@ export function drawPrintLayer(
   const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
   ctx.save();
   metrics.drawGeometry(ctx, 0);
-  ctx.strokeStyle = BLEED_COLOR;
+  ctx.strokeStyle = frameColor;
   ctx.lineWidth = BLEED_PX * 2;
+  // Round, NOT the default miter: miter projects outward at the acute corners
+  // and measured 2.725mm against a 2mm target. Round caps it at 2.009mm.
+  ctx.lineJoin = "round";
   ctx.stroke();
   ctx.restore();
 
@@ -172,12 +175,93 @@ export function drawPrintLayer(
   ctx.restore();
 }
 
-export function drawBorderLayer(canvas: HTMLCanvasElement) {
+/**
+ * Editor guide band.
+ *
+ * Sized and positioned EXACTLY like the print layer: canvas grown by the bleed,
+ * band stroked wholly OUTSIDE the tag outline. Previously this stroked centred
+ * on the outline at tag size, so 1mm of the band sat on top of the customer's
+ * artwork while the mockup below showed that same millimetre uncovered - the
+ * editor was not mirroring the tag. The artwork area inside this frame is now
+ * exactly 46.0 x 19.9mm, matching the mockup face.
+ */
+export function drawBorderLayer(canvas: HTMLCanvasElement, color: string = FRAME_COLOR_DEFAULT) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  canvas.width = CANVAS_W;
-  canvas.height = CANVAS_H;
-  drawKeyTagBorder(ctx, getTagMetrics(CANVAS_W, CANVAS_H));
+  canvas.width = BLEED_CANVAS_W;
+  canvas.height = BLEED_CANVAS_H;
+  ctx.clearRect(0, 0, BLEED_CANVAS_W, BLEED_CANVAS_H);
+
+  ctx.save();
+  ctx.translate(BLEED_PX, BLEED_PX);
+  const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
+  ctx.save();
+  metrics.drawGeometry(ctx, 0);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = BLEED_PX * 2;
+  ctx.lineJoin = "round";
+  ctx.stroke();
+  ctx.restore();
+  // Punch the tag itself back out so the band is only ever outside it.
+  ctx.save();
+  ctx.globalCompositeOperation = "destination-out";
+  metrics.drawGeometry(ctx, 0);
+  ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+
+/**
+ * Frame colour taken from the customer's image.
+ *
+ * The band marks the bleed for the printer, so it has to stay visible against
+ * whatever artwork sits next to it. Mean colour of the image, hue rotated 180
+ * degrees, saturation and lightness forced to a vivid mid value - that is
+ * always distinguishable from the image it borders.
+ */
+export function frameColorForImage(img: HTMLImageElement): string {
+  const w = 32;
+  const h = Math.max(1, Math.round((img.naturalHeight / img.naturalWidth) * w)) || 1;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d");
+  if (!ctx) return FRAME_COLOR_DEFAULT;
+  try {
+    ctx.drawImage(img, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 8) continue;
+      r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
+    }
+    if (!n) return FRAME_COLOR_DEFAULT;
+    return hueRotatedVivid(r / n / 255, g / n / 255, b / n / 255);
+  } catch {
+    return FRAME_COLOR_DEFAULT;
+  }
+}
+
+function hueRotatedVivid(r: number, g: number, b: number): string {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let hue = 0;
+  if (max !== min) {
+    const dmax = max - min;
+    if (max === r) hue = ((g - b) / dmax + (g < b ? 6 : 0)) / 6;
+    else if (max === g) hue = ((b - r) / dmax + 2) / 6;
+    else hue = ((r - g) / dmax + 4) / 6;
+  }
+  return hslToHex((hue + 0.5) % 1, 0.85, 0.5);
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const f = (n: number) => {
+    const k = (n + h * 12) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const v = l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
+    return Math.round(v * 255).toString(16).padStart(2, "0");
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
 }
 
 export function mergedPreviewDataUrl(
@@ -185,12 +269,15 @@ export function mergedPreviewDataUrl(
   borderCanvas: HTMLCanvasElement,
   mime: "image/png" | "image/jpeg" = "image/png"
 ): string {
+  // The border canvas is the full bleed size and the content canvas is the tag,
+  // so the merge happens at bleed size with the content offset inward. Drawing
+  // both at 0,0 would put the band a bleed-width off from the artwork.
   const merged = document.createElement("canvas");
-  merged.width = CANVAS_W;
-  merged.height = CANVAS_H;
+  merged.width = BLEED_CANVAS_W;
+  merged.height = BLEED_CANVAS_H;
   const ctx = merged.getContext("2d");
   if (!ctx) return contentCanvas.toDataURL(mime, SUBMIT_JPEG_QUALITY);
-  ctx.drawImage(contentCanvas, 0, 0);
+  ctx.drawImage(contentCanvas, BLEED_PX, BLEED_PX);
   ctx.drawImage(borderCanvas, 0, 0);
   return merged.toDataURL(mime, SUBMIT_JPEG_QUALITY);
 }
@@ -224,7 +311,15 @@ export async function printFileBlob(
   cache: Map<string, HTMLImageElement>
 ): Promise<Blob> {
   const canvas = document.createElement("canvas");
-  drawPrintLayer(canvas, payload.tagColor, payload.images, payload.textLines, cache, payload.qrCode);
+  drawPrintLayer(
+    canvas,
+    payload.tagColor,
+    payload.images,
+    payload.textLines,
+    cache,
+    payload.qrCode,
+    payload.frameColor
+  );
   const raw = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!raw) throw new Error("PNG export failed");
   const tagged = embedPngDpi(new Uint8Array(await raw.arrayBuffer()), PRINT_DPI);
