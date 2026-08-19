@@ -410,14 +410,19 @@ label { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(-
 .preview-wrap.portrait {
   position: relative;
   width: 100%;
-  aspect-ratio: 19.9 / 46;
+  /* 1:1 because the stack keeps 100% width; rotated, that width becomes the
+     height. The tag's own 19.9/46 ratio here reserved 2006px for an 868px tag
+     and left 569px of dead space above and below - measured, not guessed. */
+  aspect-ratio: 1 / 1;
 }
 
 .preview-stack.portrait {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: calc(100% * 46 / 19.9);
+  /* Do NOT widen: the base .preview-stack rule carries max-width:100%, which
+     silently clamps anything larger and breaks the height match above. */
+  width: 100%;
   transform: translate(-50%, -50%) rotate(90deg);
   transform-origin: center center;
 }
