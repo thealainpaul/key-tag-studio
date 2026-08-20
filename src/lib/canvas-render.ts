@@ -82,6 +82,17 @@ function paintTagContent(
     ctx.restore();
   }
 
+  // Trim fill and artwork back to the dilated tag shape, so the bleed is a
+  // uniform 2mm ring rather than the whole rectangle.
+  if (bleeding) {
+    const mask = bleedShapeMask(bleed);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.drawImage(mask, 0, 0);
+    ctx.restore();
+  }
+
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   textLines.forEach((line) => {
@@ -96,10 +107,8 @@ function paintTagContent(
     const size = qrCode.size ?? QR_DEFAULT_PX;
     const fallback = qrDefaultCenter(size);
     ctx.save();
-    if (!bleeding) {
-      metrics.drawGeometry(ctx, 0);
-      ctx.clip();
-    }
+    metrics.drawGeometry(ctx, 0);
+    ctx.clip();
     drawQr(
       ctx,
       qrCode.url,
@@ -109,17 +118,6 @@ function paintTagContent(
       qrCode.color ?? "#000000",
       qrCode.halo ?? true
     );
-    ctx.restore();
-  }
-
-  // One mask over everything: fill, artwork, text and QR are all bounded by the
-  // same shape. Clipping some to the tag while others bleed would cut a hard
-  // edge through a composition the customer sees as one.
-  if (bleeding) {
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalCompositeOperation = "destination-in";
-    ctx.drawImage(bleedShapeMask(bleed), 0, 0);
     ctx.restore();
   }
 }

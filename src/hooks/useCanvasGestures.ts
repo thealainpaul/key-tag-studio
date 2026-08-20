@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { DesignImage, TextLine } from "@/lib/design";
 import { pinchImageDimensions, pointerDistance, type PinchState } from "@/lib/canvas-gestures";
-import { BLEED_CANVAS_H, BLEED_CANVAS_W, BLEED_PX } from "@/lib/keytag-shape";
+import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
 
 type DragState = { type: "text" | "image"; id: string; ox: number; oy: number };
 type PointerPoint = { x: number; y: number };
@@ -59,15 +59,10 @@ export function useCanvasGestures({
     const u = (clientX - rect.left) / rect.width;
     const v = (clientY - rect.top) / rect.height;
 
-    // The canvas is BLEED-sized and its drawing origin is offset inward by
-    // BLEED_PX, so map into bleed space first and then subtract the offset.
-    // Mapping straight onto CANVAS_W/H would be both mis-scaled and shifted.
-    const bu = portraitRef?.current ? v : u;
-    const bv = portraitRef?.current ? 1 - u : v;
-    return {
-      x: bu * BLEED_CANVAS_W - BLEED_PX,
-      y: bv * BLEED_CANVAS_H - BLEED_PX,
-    };
+    if (portraitRef?.current) {
+      return { x: v * CANVAS_W, y: (1 - u) * CANVAS_H };
+    }
+    return { x: u * CANVAS_W, y: v * CANVAS_H };
   }
 
   function activeImage() {
