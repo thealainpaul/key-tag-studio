@@ -662,8 +662,6 @@ export default function DesignerApp() {
         </div>
         <div className="preview-hints">
           <p>{labels.hintUpload}</p>
-          <p>{labels.hintBlack}</p>
-          <p>{labels.hintRed}</p>
           {images.length > 0 && <p>{labels.hintGestures}</p>}
         </div>
         {/*
