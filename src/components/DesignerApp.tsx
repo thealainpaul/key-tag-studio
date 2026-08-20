@@ -9,7 +9,7 @@ import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
 import KeyTagMockupPreview from "@/components/KeyTagMockupPreview";
 import KeyTagPlaceholder from "@/components/KeyTagPlaceholder";
 import {
-  drawBorderLayer,
+  drawBleedLayer,
   drawContentLayer,
   frameColorForImage,
   fullSourceDataUrl,
@@ -41,7 +41,7 @@ const mmPx = mmToPx(1);
  * Two strings that were hardcoded in English and so never translated.
  * Kept here rather than in i18n.ts to avoid touching shared files.
  */
-const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHint: string; verticalHint: string }> = {
+const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHint: string; verticalHint: string; bleedLabel: string; overlayHint: string }> = {
   de: {
     qrHint:
       "Kreuzen Sie dieses Feld an, wenn Sie einen QR-Code möchten, geben Sie dann Ihre URL unten ein und passen Sie Position und Farben mit den Steuerelementen darunter an.",
@@ -50,6 +50,10 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Kreuzen Sie dieses Feld an, wenn wir es für Sie machen sollen. (Laden Sie dann einfach ein Bild hoch und senden Sie Ihre Bestellung ab.)",
     verticalHint:
       "Kreuzen Sie dieses Feld an für einen vertikalen Editor und Mockup. (Editor im Hochformat)",
+    bleedLabel:
+      "Dieser Rahmenbereich wird nicht auf Ihren Anhänger gedruckt.",
+    overlayHint:
+      "Kreuzen Sie dieses Feld an, um die transparente Rahmenfarbe von Schwarz auf Weiss zu ändern.",
   },
   fr: {
     qrHint:
@@ -59,6 +63,10 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Cochez cette case si vous souhaitez que nous le fassions pour vous. (Téléchargez simplement une image et envoyez votre commande.)",
     verticalHint:
       "Cochez cette case pour un éditeur et un mockup verticaux. (Éditeur à la verticale)",
+    bleedLabel:
+      "Cette zone de cadre n’est pas imprimée sur votre porte-clés.",
+    overlayHint:
+      "Cochez cette case pour changer la couleur du cadre transparent de noir à blanc.",
   },
   it: {
     qrHint:
@@ -68,6 +76,10 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Seleziona questa casella se vuoi che lo facciamo noi per te. (Carica semplicemente un'immagine e invia il tuo ordine.)",
     verticalHint:
       "Seleziona questa casella per un editor e un mockup verticali. (Editor in verticale)",
+    bleedLabel:
+      "Quest’area della cornice non viene stampata sul tuo portachiavi.",
+    overlayHint:
+      "Seleziona questa casella per cambiare il colore della cornice trasparente da nero a bianco.",
   },
   es: {
     qrHint:
@@ -77,6 +89,10 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Marque esta casilla si desea que lo hagamos por usted. (Solo suba una imagen y envíe su pedido.)",
     verticalHint:
       "Marque esta casilla para un editor y un mockup verticales. (Editor en vertical)",
+    bleedLabel:
+      "Esta zona del marco no se imprime en su llavero.",
+    overlayHint:
+      "Marque esta casilla para cambiar el color del marco transparente de negro a blanco.",
   },
   en: {
     qrHint:
@@ -86,6 +102,10 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Tick this box if you want us to do it for you. (Then simply upload an image and send in your order.)",
     verticalHint:
       "Tick this box to get a vertical editor and Mockup. (Editor that is upright)",
+    bleedLabel:
+      "This frame area doesn’t get printed on your tag.",
+    overlayHint:
+      "Tick this box to change the transparent frame colour from black to white.",
   },
 };
 
@@ -127,6 +147,7 @@ export default function DesignerApp() {
   /** Read by the gesture hook, which needs it without re-subscribing. */
   const portraitRef = useRef(false);
   const frameColorRef = useRef(FRAME_COLOR_DEFAULT);
+  const overlayRef = useRef<"black" | "white">("black");
 
   const [tagColor, setTagColor] = useState("#1f1f1f");
   const [images, setImages] = useState<DesignImage[]>([]);
@@ -146,6 +167,7 @@ export default function DesignerApp() {
   const [designForMe, setDesignForMe] = useState(false);
   const [portrait, setPortrait] = useState(false);
   const [frameColor, setFrameColor] = useState(FRAME_COLOR_DEFAULT);
+  const [overlayWhite, setOverlayWhite] = useState(false);
   const [canvasReady, setCanvasReady] = useState(false);
   const [mockupRevision, setMockupRevision] = useState(0);
   const [qrEnabled, setQrEnabled] = useState(false);
@@ -164,6 +186,7 @@ export default function DesignerApp() {
   designForMeRef.current = designForMe;
   portraitRef.current = portrait;
   frameColorRef.current = frameColor;
+  overlayRef.current = overlayWhite ? "white" : "black";
 
   const qrCodeState = useMemo(
     () => ({
@@ -199,16 +222,17 @@ export default function DesignerApp() {
     const content = contentCanvasRef.current;
     const border = borderCanvasRef.current;
     if (content) drawContentLayer(content, tagColor, [], [], imageCache.current, { enabled: false, url: "" });
-    if (border) drawBorderLayer(border, frameColorRef.current);
+    if (border) drawBleedLayer(border, tagColor, [], imageCache.current, overlayRef.current);
     setCanvasReady(true);
   }, []);
 
-  // The band is a separate canvas from the artwork, so a colour change has to
-  // repaint it explicitly - the content redraw below does not touch it.
+  // The bleed ring is a separate canvas from the artwork, so it has to be
+  // repainted whenever the picture, the tag colour or the overlay changes -
+  // the content redraw below does not touch it.
   useEffect(() => {
     const border = borderCanvasRef.current;
-    if (border) drawBorderLayer(border, frameColor);
-  }, [frameColor]);
+    if (border) drawBleedLayer(border, tagColor, images, imageCache.current, overlayWhite ? "white" : "black");
+  }, [tagColor, images, overlayWhite]);
 
   useEffect(() => {
     redrawContent();
@@ -602,6 +626,21 @@ export default function DesignerApp() {
       </div>
 
       <div className="preview-panel">
+        <div className="bleed-callout">
+          <label className="checkbox-row inline">
+            <input
+              type="checkbox"
+              checked={overlayWhite}
+              onChange={(e) => setOverlayWhite(e.target.checked)}
+            />
+            <span>{extra.overlayHint}</span>
+          </label>
+          <div className="bleed-pointer">
+            <span className="bleed-pointer-text">{extra.bleedLabel}</span>
+            <span className="bleed-pointer-line" aria-hidden="true" />
+          </div>
+        </div>
+
         <div className={`preview-wrap${portrait ? " portrait" : ""}`}>
           <div className={`preview-stack${portrait ? " portrait" : ""}`} ref={previewStackRef}>
             {!canvasReady && <KeyTagPlaceholder />}

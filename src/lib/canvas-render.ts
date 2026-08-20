@@ -16,6 +16,9 @@ import { embedPngDpi } from "@/lib/png-dpi";
 
 /** Enough for print (tag is ~2173px wide) without huge phone-photo payloads. */
 const SUBMIT_IMAGE_MAX_PX = 2560;
+
+/** The editor's bleed layer. 0.75 = the picture shows through at 25%. */
+const BLEED_OVERLAY_ALPHA = 0.75;
 const SUBMIT_JPEG_QUALITY = 0.9;
 
 export function preloadImage(url: string, cache: Map<string, HTMLImageElement>) {
@@ -42,6 +45,85 @@ export async function preloadAllImages(images: DesignImage[], cache: Map<string,
       // skip broken
     }
   }
+}
+
+/**
+ * A mask of the tag grown outward by the bleed.
+ *
+ * Fill plus a round-joined stroke of the same path: the stroke is centred, so
+ * half its width lies outside, and a round join holds that distance
+ * perpendicular at every point including the acute corners.
+ */
+function bleedShapeMask(): HTMLCanvasElement {
+  const mask = document.createElement("canvas");
+  mask.width = BLEED_CANVAS_W;
+  mask.height = BLEED_CANVAS_H;
+  const c = mask.getContext("2d");
+  if (!c) return mask;
+  c.translate(BLEED_PX, BLEED_PX);
+  getTagMetrics(CANVAS_W, CANVAS_H).drawGeometry(c, 0);
+  c.fillStyle = "#ffffff";
+  c.fill();
+  c.strokeStyle = "#ffffff";
+  c.lineWidth = BLEED_PX * 2;
+  c.lineJoin = "round";
+  c.lineCap = "round";
+  c.stroke();
+  return mask;
+}
+
+/**
+ * Paints ONLY the bleed ring: the tag colour and the customer's picture carried
+ * 2mm outward past the tag edge, with the tag itself punched out so nothing
+ * covers the artwork area.
+ *
+ * Drawn on the same bleed-sized canvas the coloured frame used to occupy. The
+ * tag canvas stays 46.0 x 19.9mm and so does the mockup that reads it.
+ *
+ * The context must already be translated by BLEED_PX so that tag coordinates
+ * line up with the tag canvas exactly.
+ */
+function paintBleedRing(
+  ctx: CanvasRenderingContext2D,
+  tagColor: string,
+  images: DesignImage[],
+  cache: Map<string, HTMLImageElement>
+) {
+  const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
+
+  // Tag colour first, so anywhere the customer's picture does not reach shows
+  // the colour they picked rather than nothing.
+  ctx.save();
+  ctx.fillStyle = tagColor;
+  ctx.fillRect(-BLEED_PX, -BLEED_PX, BLEED_CANVAS_W, BLEED_CANVAS_H);
+  ctx.restore();
+
+  // The picture, at the same coordinates as on the tag, so it simply continues.
+  for (const item of images) {
+    const image = cache.get(item.url);
+    if (!image?.complete) continue;
+    ctx.save();
+    const centerX = item.x + item.width / 2;
+    const centerY = item.y + item.height / 2;
+    ctx.translate(centerX, centerY);
+    ctx.rotate((item.rotation * Math.PI) / 180);
+    ctx.drawImage(image, -item.width / 2, -item.height / 2, item.width, item.height);
+    ctx.restore();
+  }
+
+  // Trim to the dilated tag, then punch the tag itself out. What is left is
+  // exactly the 2mm ring.
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = "destination-in";
+  ctx.drawImage(bleedShapeMask(), 0, 0);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalCompositeOperation = "destination-out";
+  metrics.drawGeometry(ctx, 0);
+  ctx.fill();
+  ctx.restore();
 }
 
 /**
@@ -146,8 +228,7 @@ export function drawPrintLayer(
   images: DesignImage[],
   textLines: TextLine[],
   cache: Map<string, HTMLImageElement>,
-  qrCode?: DesignPayload["qrCode"],
-  frameColor: string = FRAME_COLOR_DEFAULT
+  qrCode?: DesignPayload["qrCode"]
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -159,16 +240,9 @@ export function drawPrintLayer(
   ctx.save();
   ctx.translate(BLEED_PX, BLEED_PX);
 
-  const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
-  ctx.save();
-  metrics.drawGeometry(ctx, 0);
-  ctx.strokeStyle = frameColor;
-  ctx.lineWidth = BLEED_PX * 2;
-  // Round, NOT the default miter: miter projects outward at the acute corners
-  // and measured 2.725mm against a 2mm target. Round caps it at 2.009mm.
-  ctx.lineJoin = "round";
-  ctx.stroke();
-  ctx.restore();
+  // The bleed: 2mm of the customer's own picture carried outward. No frame and
+  // no overlay - the printer trims into real artwork.
+  paintBleedRing(ctx, tagColor, images, cache);
 
   paintTagContent(ctx, tagColor, images, textLines, cache, qrCode);
 
@@ -176,16 +250,22 @@ export function drawPrintLayer(
 }
 
 /**
- * Editor guide band.
+ * Editor bleed layer.
  *
- * Sized and positioned EXACTLY like the print layer: canvas grown by the bleed,
- * band stroked wholly OUTSIDE the tag outline. Previously this stroked centred
- * on the outline at tag size, so 1mm of the band sat on top of the customer's
- * artwork while the mockup below showed that same millimetre uncovered - the
- * editor was not mirroring the tag. The artwork area inside this frame is now
- * exactly 46.0 x 19.9mm, matching the mockup face.
+ * Occupies exactly the place the coloured frame used to: the same bleed-sized
+ * canvas, the same 2mm ring outside the tag. The only change is what fills it -
+ * the customer's own picture carried outward, instead of a flat colour - with a
+ * 75% layer over it so they can see it will be trimmed away.
+ *
+ * The tag canvas is not resized and the mockup is not touched.
  */
-export function drawBorderLayer(canvas: HTMLCanvasElement, color: string = FRAME_COLOR_DEFAULT) {
+export function drawBleedLayer(
+  canvas: HTMLCanvasElement,
+  tagColor: string,
+  images: DesignImage[],
+  cache: Map<string, HTMLImageElement>,
+  overlay: "black" | "white" = "black"
+) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   canvas.width = BLEED_CANVAS_W;
@@ -194,20 +274,16 @@ export function drawBorderLayer(canvas: HTMLCanvasElement, color: string = FRAME
 
   ctx.save();
   ctx.translate(BLEED_PX, BLEED_PX);
-  const metrics = getTagMetrics(CANVAS_W, CANVAS_H);
-  ctx.save();
-  metrics.drawGeometry(ctx, 0);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = BLEED_PX * 2;
-  ctx.lineJoin = "round";
-  ctx.stroke();
+  paintBleedRing(ctx, tagColor, images, cache);
   ctx.restore();
-  // Punch the tag itself back out so the band is only ever outside it.
+
+  // The 75% layer, laid only where the ring was painted. source-atop leaves the
+  // transparent tag area and everything past the 2mm untouched.
   ctx.save();
-  ctx.globalCompositeOperation = "destination-out";
-  metrics.drawGeometry(ctx, 0);
-  ctx.fill();
-  ctx.restore();
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.globalAlpha = BLEED_OVERLAY_ALPHA;
+  ctx.fillStyle = overlay === "white" ? "#ffffff" : "#000000";
+  ctx.fillRect(0, 0, BLEED_CANVAS_W, BLEED_CANVAS_H);
   ctx.restore();
 }
 
@@ -317,8 +393,7 @@ export async function printFileBlob(
     payload.images,
     payload.textLines,
     cache,
-    payload.qrCode,
-    payload.frameColor
+    payload.qrCode
   );
   const raw = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!raw) throw new Error("PNG export failed");
