@@ -134,16 +134,13 @@ export function drawKeyTagFill(
  * is the trim margin — the printable area is what sits inside it, which is what
  * the hint text tells the customer. The mockup clips to the same inner edge.
  */
-/** Editor overlay colour over the bleed ring. */
-export type OverlayColor = "black" | "white";
-
-/** How opaque that overlay is. 0.75 = the picture shows through at 25%. */
-export const BLEED_OVERLAY_ALPHA = 0.75;
+/** Default frame colour, used until an image supplies one. */
+export const FRAME_COLOR_DEFAULT = "#ef4444";
 
 export function drawKeyTagBorder(
   ctx: CanvasRenderingContext2D,
   metrics: TagMetrics,
-  color = "#ef4444"
+  color: string = FRAME_COLOR_DEFAULT
 ) {
   ctx.save();
   metrics.drawGeometry(ctx, 0);

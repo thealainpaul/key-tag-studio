@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
 import { fitCoverInFrame } from "@/lib/design";
 import {
-  drawBleedOverlay,
+  drawBorderLayer,
   drawContentLayer,
   downloadBlob,
   mergedPreviewDataUrl,
@@ -70,7 +70,7 @@ export default function AdminDesignEditor({ designId, initialPayload, initialSta
       await preloadAllImages(initialImages, imageCache.current);
       setReady(true);
       const border = borderCanvasRef.current;
-      if (border) drawBleedOverlay(border);
+      if (border) drawBorderLayer(border);
       redrawContent();
     })();
   }, [initialPayload, redrawContent]);
