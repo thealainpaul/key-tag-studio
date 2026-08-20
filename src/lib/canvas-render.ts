@@ -82,17 +82,6 @@ function paintTagContent(
     ctx.restore();
   }
 
-  // Trim fill and artwork back to the dilated tag shape, so the bleed is a
-  // uniform 2mm ring rather than the whole rectangle.
-  if (bleeding) {
-    const mask = bleedShapeMask(bleed);
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalCompositeOperation = "destination-in";
-    ctx.drawImage(mask, 0, 0);
-    ctx.restore();
-  }
-
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   textLines.forEach((line) => {
