@@ -87,13 +87,15 @@ button, input, select, textarea { font: inherit; }
   pointer-events: none;
 }
 
-/* Inset by exactly the bleed: 94/2361 across, 94/1128 down. */
+/*
+ * Bleed-sized, same as the overlay above it, so the two align exactly.
+ * Do NOT inset this - the artwork canvas already includes the bleed.
+ */
 .preview-content {
   position: absolute;
-  left: 3.9814%;
-  top: 8.3333%;
-  width: 92.0373%;
-  height: 83.3333%;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   display: block;
   touch-action: none;
   cursor: grab;
