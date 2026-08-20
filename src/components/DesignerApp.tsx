@@ -427,11 +427,45 @@ export default function DesignerApp() {
   useEffect(() => {
     let last = 0;
 
+    /**
+     * Measure the CONTENT, never scrollHeight.
+     *
+     * scrollHeight can never report less than the viewport, and inside an
+     * iframe the viewport IS the height the parent has already set. So once
+     * the parent makes the frame taller than the content, this page measures
+     * the frame itself, reports that back, and the height ratchets up and can
+     * never come down. That is what left ~640px of white space below the
+     * controls: real content 1092px, reported 1729px.
+     *
+     * The bottom edge of the lowest laid-out element is the content height,
+     * and it shrinks again when the customer unticks a box. Fixed and absolute
+     * elements are skipped: they are positioned against the viewport, so they
+     * would reintroduce exactly the feedback this avoids.
+     */
+    function contentHeight(): number {
+      const body = document.body;
+      if (!body) return 0;
+
+      let bottom = 0;
+      const walk = (el: Element) => {
+        const style = window.getComputedStyle(el);
+        if (style.position === "fixed" || style.position === "absolute") return;
+        if (style.display === "none") return;
+        const rect = el.getBoundingClientRect();
+        if (rect.height > 0) {
+          bottom = Math.max(bottom, rect.bottom + window.scrollY);
+        }
+        for (let i = 0; i < el.children.length; i++) walk(el.children[i]);
+      };
+      walk(body);
+
+      const bodyStyle = window.getComputedStyle(body);
+      const marginBottom = parseFloat(bodyStyle.marginBottom) || 0;
+      return Math.ceil(bottom + marginBottom);
+    }
+
     function report() {
-      const doc = document.documentElement;
-      const height = Math.ceil(
-        Math.max(doc.scrollHeight, doc.offsetHeight, document.body ? document.body.scrollHeight : 0)
-      );
+      const height = contentHeight();
       // A one-pixel jitter would otherwise loop: resize -> report -> resize.
       if (!height || Math.abs(height - last) < 2) return;
       last = height;
