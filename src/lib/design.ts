@@ -39,8 +39,8 @@ export type DesignPayload = {
    * manufacturer receives never changes shape.
    */
   orientation?: "landscape" | "portrait";
-  /** Bleed frame colour, derived from the customer's image. */
-  frameColor?: string;
+  /** Editor bleed overlay: black or white. Editor-only, not printed. */
+  overlayColor?: "black" | "white";
   qrCode?: {
     enabled: boolean;
     url: string;
