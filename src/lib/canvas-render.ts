@@ -1,4 +1,5 @@
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
+import { liftColor, MIN_CHANNEL } from "@/lib/design";
 import {
   BLEED_CANVAS_H,
   BLEED_CANVAS_W,
@@ -17,8 +18,6 @@ import { embedPngDpi } from "@/lib/png-dpi";
 /** Enough for print (tag is ~2173px wide) without huge phone-photo payloads. */
 const SUBMIT_IMAGE_MAX_PX = 2560;
 
-/** The editor's bleed layer. 0.75 = the picture shows through at 25%. */
-const BLEED_OVERLAY_ALPHA = 0.75;
 const SUBMIT_JPEG_QUALITY = 0.9;
 
 export function preloadImage(url: string, cache: Map<string, HTMLImageElement>) {
@@ -72,6 +71,75 @@ function bleedShapeMask(): HTMLCanvasElement {
   return mask;
 }
 
+
+/**
+ * Shadow colour as rgba, so opacity is applied without disturbing the hue the
+ * customer picked. Accepts #rgb, #rrggbb and rgb()/rgba(); anything else is
+ * passed through untouched rather than guessed at.
+ */
+function shadowRgba(css: string, alpha: number): string {
+  const hex = css.trim();
+  let r: number, g: number, b: number;
+  if (/^#[0-9a-f]{3}$/i.test(hex)) {
+    r = parseInt(hex[1] + hex[1], 16);
+    g = parseInt(hex[2] + hex[2], 16);
+    b = parseInt(hex[3] + hex[3], 16);
+  } else if (/^#[0-9a-f]{6}$/i.test(hex)) {
+    r = parseInt(hex.slice(1, 3), 16);
+    g = parseInt(hex.slice(3, 5), 16);
+    b = parseInt(hex.slice(5, 7), 16);
+  } else {
+    return css;
+  }
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * The manufacturer's 80% ink rule, for SOLID ink areas.
+ *
+ * "Barcodes, oder deren Hintergruende sollten grundsaetzlich, wie auch
+ * Schriften, auf 80% schwarz, also Grau, gestaltet werden."
+ *
+ * The reason is ink spread, not contrast. A 100% solid lays down enough ink to
+ * creep sideways and close the white gaps between the modules, and the code
+ * stops scanning. Less ink, less spread.
+ *
+ * Applied to the QR modules AND to the base colour behind them. They are the
+ * same requirement: the base is solid ink pressed right against the code's
+ * white gaps, so if it is laid at 100% it spreads into them and the gaps close
+ * just as surely as if the modules themselves were too heavy. He named the
+ * barcode, its background and the Grundflaeche together for that reason.
+ *
+ * NOT applied to photographs. They have no fine white gaps to close, and
+ * earlier versions that capped the whole image flattened shadows and greyed
+ * entire pictures.
+ *
+ * 80% ink leaves 20% of the substrate showing, so the darkest tone is 51/255.
+ */
+export function capSolidInk(color: string): string {
+  const hex = color.trim();
+  let r: number, g: number, b: number;
+  if (/^#[0-9a-f]{3}$/i.test(hex)) {
+    r = parseInt(hex[1] + hex[1], 16);
+    g = parseInt(hex[2] + hex[2], 16);
+    b = parseInt(hex[3] + hex[3], 16);
+  } else if (/^#[0-9a-f]{6}$/i.test(hex)) {
+    r = parseInt(hex.slice(1, 3), 16);
+    g = parseInt(hex.slice(3, 5), 16);
+    b = parseInt(hex.slice(5, 7), 16);
+  } else {
+    return color; // not a form we can read - left untouched rather than guessed at
+  }
+
+  const m = Math.max(r, g, b);
+  if (m >= MIN_CHANNEL) return color; // already lighter than 80% ink
+
+  // Add the same amount to all three, so the customer's chosen hue survives.
+  const lift = MIN_CHANNEL - m;
+  const to = (v: number) => Math.min(255, v + lift).toString(16).padStart(2, "0");
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+
 /**
  * Paints ONLY the bleed ring: the tag colour and the customer's picture carried
  * 2mm outward past the tag edge, with the tag itself punched out so nothing
@@ -94,7 +162,7 @@ function paintBleedRing(
   // Tag colour first, so anywhere the customer's picture does not reach shows
   // the colour they picked rather than nothing.
   ctx.save();
-  ctx.fillStyle = tagColor;
+  ctx.fillStyle = capSolidInk(tagColor);
   ctx.fillRect(-BLEED_PX, -BLEED_PX, BLEED_CANVAS_W, BLEED_CANVAS_H);
   ctx.restore();
 
@@ -144,7 +212,7 @@ function paintTagContent(
 
   ctx.save();
   metrics.drawGeometry(ctx, 0);
-  ctx.fillStyle = tagColor;
+  ctx.fillStyle = capSolidInk(tagColor);
   ctx.fill();
   ctx.restore();
 
@@ -168,9 +236,94 @@ function paintTagContent(
   ctx.textBaseline = "middle";
   textLines.forEach((line) => {
     if (!line.text.trim()) return;
-    ctx.font = `${line.fontSize}px "${line.fontFamily}"`;
+
+    const weight = line.bold ? "bold " : "";
+    const style = line.italic ? "italic " : "";
+    ctx.font = `${style}${weight}${line.fontSize}px "${line.fontFamily}"`;
+
+    const tracking = line.letterSpacing ?? 0;
+    const chars = Array.from(line.text);
+
+    // Advance of the whole line, tracking included. measureText does not know
+    // about our tracking, so it is added per gap.
+    const runWidth =
+      chars.reduce((w, c) => w + ctx.measureText(c).width, 0) + tracking * Math.max(0, chars.length - 1);
+
+    const m0 = ctx.measureText(line.text);
+    const ascent = m0.actualBoundingBoxAscent || line.fontSize * 0.35;
+    const descent = m0.actualBoundingBoxDescent || line.fontSize * 0.35;
+
+    // Stacked: each glyph stays UPRIGHT and they run downward. The step is the
+    // glyph height plus tracking, so the same control spaces both layouts.
+    const step = line.fontSize + tracking;
+    const stackHeight = line.stacked ? step * Math.max(0, chars.length - 1) : 0;
+
+    ctx.save();
+
+    // Rotate about the line's own centre, so the text turns in place rather
+    // than swinging away from where the customer put it.
+    const angle = ((line.angle ?? 0) % 360) * (Math.PI / 180);
+    if (angle) {
+      ctx.translate(line.x, line.y);
+      ctx.rotate(angle);
+      ctx.translate(-line.x, -line.y);
+    }
+
+    const sh = line.shadow;
+    if (sh?.enabled) {
+      const alpha = Math.max(0, Math.min(1, sh.opacity));
+      ctx.shadowColor = shadowRgba(sh.color, alpha);
+      ctx.shadowOffsetX = sh.dx;
+      ctx.shadowOffsetY = sh.dy;
+      ctx.shadowBlur = sh.blur;
+    }
+
     ctx.fillStyle = line.color;
-    ctx.fillText(line.text, line.x, line.y);
+
+    if (line.stacked) {
+      const prevAlign = ctx.textAlign;
+      ctx.textAlign = "center";
+      let y = line.y - stackHeight / 2;
+      for (const c of chars) {
+        ctx.fillText(c, line.x, y);
+        y += step;
+      }
+      ctx.textAlign = prevAlign;
+    } else if (tracking) {
+      // Drawn glyph by glyph so the tracking is applied; fillText alone cannot.
+      const prevAlign = ctx.textAlign;
+      ctx.textAlign = "left";
+      let x = prevAlign === "center" ? line.x - runWidth / 2 : line.x;
+      for (const c of chars) {
+        ctx.fillText(c, x, line.y);
+        x += ctx.measureText(c).width + tracking;
+      }
+      ctx.textAlign = prevAlign;
+    } else {
+      ctx.fillText(line.text, line.x, line.y);
+    }
+
+    // Rules are drawn without the shadow, otherwise a blurred bar doubles up
+    // under the glyphs and muddies small type. Stacked text gets no rules -
+    // a single bar across a vertical column of letters is meaningless.
+    if ((line.underline || line.strike) && !line.stacked) {
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      const w = runWidth;
+      const x0 = ctx.textAlign === "center" ? line.x - w / 2 : line.x;
+      const thickness = Math.max(1, line.fontSize * 0.06);
+      ctx.fillStyle = line.color;
+      if (line.underline) {
+        ctx.fillRect(x0, line.y + descent + thickness * 1.5, w, thickness);
+      }
+      if (line.strike) {
+        ctx.fillRect(x0, line.y - ascent / 2 + descent / 2 - thickness / 2, w, thickness);
+      }
+    }
+
+    ctx.restore();
   });
 
   // QR — drawn last so it sits on top of artwork and text
@@ -186,7 +339,7 @@ function paintTagContent(
       qrCode.x ?? fallback.x,
       qrCode.y ?? fallback.y,
       size,
-      qrCode.color ?? "#000000",
+      capSolidInk(qrCode.color ?? "#000000"),
       qrCode.halo ?? true
     );
     ctx.restore();
@@ -250,21 +403,17 @@ export function drawPrintLayer(
 }
 
 /**
- * Editor bleed layer.
+/**
+ * Editor bleed layer: the customer's picture carried 1mm past the tag edge.
  *
- * Occupies exactly the place the coloured frame used to: the same bleed-sized
- * canvas, the same 2mm ring outside the tag. The only change is what fills it -
- * the customer's own picture carried outward, instead of a flat colour - with a
- * 75% layer over it so they can see it will be trimmed away.
- *
- * The tag canvas is not resized and the mockup is not touched.
+ * No dimming overlay - the ring simply shows the artwork continuing outward,
+ * which is exactly what the manufacturer prints and then trims.
  */
 export function drawBleedLayer(
   canvas: HTMLCanvasElement,
   tagColor: string,
   images: DesignImage[],
-  cache: Map<string, HTMLImageElement>,
-  overlay: "black" | "white" = "black"
+  cache: Map<string, HTMLImageElement>
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -275,15 +424,6 @@ export function drawBleedLayer(
   ctx.save();
   ctx.translate(BLEED_PX, BLEED_PX);
   paintBleedRing(ctx, tagColor, images, cache);
-  ctx.restore();
-
-  // The 75% layer, laid only where the ring was painted. source-atop leaves the
-  // transparent tag area and everything past the 2mm untouched.
-  ctx.save();
-  ctx.globalCompositeOperation = "source-atop";
-  ctx.globalAlpha = BLEED_OVERLAY_ALPHA;
-  ctx.fillStyle = overlay === "white" ? "#ffffff" : "#000000";
-  ctx.fillRect(0, 0, BLEED_CANVAS_W, BLEED_CANVAS_H);
   ctx.restore();
 }
 

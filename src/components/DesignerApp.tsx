@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
+import { TEXT_FONTS } from "@/lib/design";
 import { fitCoverInFrame, fitCoverInFrameRotated } from "@/lib/design";
 import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
 import KeyTagMockupPreview from "@/components/KeyTagMockupPreview";
@@ -32,7 +33,6 @@ import {
   qrModuleSizeMm,
 } from "@/lib/qrcode-render";
 
-const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
 
 /** Canvas pixels per millimetre — used for the QR size readout. */
 const mmPx = mmToPx(1);
@@ -41,7 +41,7 @@ const mmPx = mmToPx(1);
  * Two strings that were hardcoded in English and so never translated.
  * Kept here rather than in i18n.ts to avoid touching shared files.
  */
-const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHint: string; verticalHint: string; bleedLabel: string; overlayHint: string }> = {
+const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHint: string; verticalHint: string; shadowHint: string; shadowColor: string; shadowOpacity: string; shadowSize: string; shadowX: string; shadowY: string; textAngle: string; textStacked: string; textSpacing: string; imageFlip: string }> = {
   de: {
     qrHint:
       "Kreuzen Sie dieses Feld an, wenn Sie einen QR-Code möchten, geben Sie dann Ihre URL unten ein und passen Sie Position und Farben mit den Steuerelementen darunter an.",
@@ -50,10 +50,16 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Kreuzen Sie dieses Feld an, wenn wir es für Sie machen sollen. (Laden Sie dann einfach ein Bild hoch und senden Sie Ihre Bestellung ab.)",
     verticalHint:
       "Kreuzen Sie dieses Feld an für einen vertikalen Editor und Mockup. (Editor im Hochformat)",
-    bleedLabel:
-      "Dieser Rahmenbereich wird nicht auf Ihren Anhänger gedruckt.",
-    overlayHint:
-      "Kreuzen Sie dieses Feld an, um die transparente Rahmenfarbe von Schwarz auf Weiss zu ändern.",
+    shadowHint: "Schatten",
+    shadowColor: "Schattenfarbe",
+    shadowOpacity: "Deckkraft",
+    shadowSize: "Grösse",
+    shadowX: "Horizontal",
+    shadowY: "Vertikal",
+    textAngle: "Drehung",
+    textStacked: "Buchstaben untereinander",
+    textSpacing: "Zeichenabstand",
+    imageFlip: "Bild um 180 Grad drehen",
   },
   fr: {
     qrHint:
@@ -63,10 +69,16 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Cochez cette case si vous souhaitez que nous le fassions pour vous. (Téléchargez simplement une image et envoyez votre commande.)",
     verticalHint:
       "Cochez cette case pour un éditeur et un mockup verticaux. (Éditeur à la verticale)",
-    bleedLabel:
-      "Cette zone de cadre n’est pas imprimée sur votre porte-clés.",
-    overlayHint:
-      "Cochez cette case pour changer la couleur du cadre transparent de noir à blanc.",
+    shadowHint: "Ombre",
+    shadowColor: "Couleur de l’ombre",
+    shadowOpacity: "Opacité",
+    shadowSize: "Taille",
+    shadowX: "Horizontal",
+    shadowY: "Vertical",
+    textAngle: "Rotation",
+    textStacked: "Lettres l’une sous l’autre",
+    textSpacing: "Espacement",
+    imageFlip: "Tourner l’image de 180 degrés",
   },
   it: {
     qrHint:
@@ -76,10 +88,16 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Seleziona questa casella se vuoi che lo facciamo noi per te. (Carica semplicemente un'immagine e invia il tuo ordine.)",
     verticalHint:
       "Seleziona questa casella per un editor e un mockup verticali. (Editor in verticale)",
-    bleedLabel:
-      "Quest’area della cornice non viene stampata sul tuo portachiavi.",
-    overlayHint:
-      "Seleziona questa casella per cambiare il colore della cornice trasparente da nero a bianco.",
+    shadowHint: "Ombra",
+    shadowColor: "Colore dell’ombra",
+    shadowOpacity: "Opacità",
+    shadowSize: "Dimensione",
+    shadowX: "Orizzontale",
+    shadowY: "Verticale",
+    textAngle: "Rotazione",
+    textStacked: "Lettere una sotto l’altra",
+    textSpacing: "Spaziatura",
+    imageFlip: "Ruota l’immagine di 180 gradi",
   },
   es: {
     qrHint:
@@ -89,10 +107,16 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Marque esta casilla si desea que lo hagamos por usted. (Solo suba una imagen y envíe su pedido.)",
     verticalHint:
       "Marque esta casilla para un editor y un mockup verticales. (Editor en vertical)",
-    bleedLabel:
-      "Esta zona del marco no se imprime en su llavero.",
-    overlayHint:
-      "Marque esta casilla para cambiar el color del marco transparente de negro a blanco.",
+    shadowHint: "Sombra",
+    shadowColor: "Color de la sombra",
+    shadowOpacity: "Opacidad",
+    shadowSize: "Tamaño",
+    shadowX: "Horizontal",
+    shadowY: "Vertical",
+    textAngle: "Rotación",
+    textStacked: "Letras una debajo de otra",
+    textSpacing: "Espaciado",
+    imageFlip: "Girar la imagen 180 grados",
   },
   en: {
     qrHint:
@@ -102,10 +126,16 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Tick this box if you want us to do it for you. (Then simply upload an image and send in your order.)",
     verticalHint:
       "Tick this box to get a vertical editor and Mockup. (Editor that is upright)",
-    bleedLabel:
-      "This frame area doesn’t get printed on your tag.",
-    overlayHint:
-      "Tick this box to change the transparent frame colour from black to white.",
+    shadowHint: "Shadow",
+    shadowColor: "Shadow colour",
+    shadowOpacity: "Opacity",
+    shadowSize: "Size",
+    shadowX: "Horizontal",
+    shadowY: "Vertical",
+    textAngle: "Rotation",
+    textStacked: "Letters stacked downward",
+    textSpacing: "Letter spacing",
+    imageFlip: "Turn the image 180 degrees",
   },
 };
 
@@ -138,6 +168,11 @@ export default function DesignerApp() {
   const textLinesRef = useRef<TextLine[]>([]);
   const selectedBgIdRef = useRef<string | null>(null);
   const mockupCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  /** Floating live preview, shown once the editor scrolls out of view. */
+  const previewPanelRef = useRef<HTMLDivElement | null>(null);
+  const floatCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [panelVisible, setPanelVisible] = useState(true);
+  const [floatDismissed, setFloatDismissed] = useState(false);
   /**
    * The customer's source image exactly as it arrived — before fitCoverInFrame
    * cropped it to the tag. Only submitted when "design it for me" is ticked.
@@ -147,13 +182,14 @@ export default function DesignerApp() {
   /** Read by the gesture hook, which needs it without re-subscribing. */
   const portraitRef = useRef(false);
   const frameColorRef = useRef(FRAME_COLOR_DEFAULT);
-  const overlayRef = useRef<"black" | "white">("black");
 
   const [tagColor, setTagColor] = useState("#1f1f1f");
   const [images, setImages] = useState<DesignImage[]>([]);
   const [textLines, setTextLines] = useState<TextLine[]>([]);
   const [selectedBgId, setSelectedBgId] = useState<string | null>(null);
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
+  const selectedTextIdRef = useRef<string | null>(null);
+  selectedTextIdRef.current = selectedTextId;
   const [showText, setShowText] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -167,7 +203,6 @@ export default function DesignerApp() {
   const [designForMe, setDesignForMe] = useState(false);
   const [portrait, setPortrait] = useState(false);
   const [frameColor, setFrameColor] = useState(FRAME_COLOR_DEFAULT);
-  const [overlayWhite, setOverlayWhite] = useState(false);
   const [canvasReady, setCanvasReady] = useState(false);
   const [mockupRevision, setMockupRevision] = useState(0);
   const [qrEnabled, setQrEnabled] = useState(false);
@@ -186,7 +221,6 @@ export default function DesignerApp() {
   designForMeRef.current = designForMe;
   portraitRef.current = portrait;
   frameColorRef.current = frameColor;
-  overlayRef.current = overlayWhite ? "white" : "black";
 
   const qrCodeState = useMemo(
     () => ({
@@ -222,7 +256,7 @@ export default function DesignerApp() {
     const content = contentCanvasRef.current;
     const border = borderCanvasRef.current;
     if (content) drawContentLayer(content, tagColor, [], [], imageCache.current, { enabled: false, url: "" });
-    if (border) drawBleedLayer(border, tagColor, [], imageCache.current, overlayRef.current);
+    if (border) drawBleedLayer(border, tagColor, [], imageCache.current);
     setCanvasReady(true);
   }, []);
 
@@ -231,8 +265,8 @@ export default function DesignerApp() {
   // the content redraw below does not touch it.
   useEffect(() => {
     const border = borderCanvasRef.current;
-    if (border) drawBleedLayer(border, tagColor, images, imageCache.current, overlayWhite ? "white" : "black");
-  }, [tagColor, images, overlayWhite]);
+    if (border) drawBleedLayer(border, tagColor, images, imageCache.current);
+  }, [tagColor, images]);
 
   useEffect(() => {
     redrawContent();
@@ -244,6 +278,11 @@ export default function DesignerApp() {
     touchTargetRef: previewStackRef,
     enabled: canvasReady,
     portraitRef,
+    qrCodeRef: qrCodeStateRef,
+    onQrChange: ({ x, y }) => {
+      setQrX(x);
+      setQrY(y);
+    },
     imagesRef,
     textLinesRef,
     selectedBgIdRef,
@@ -252,6 +291,7 @@ export default function DesignerApp() {
     onImagesChange: setImages,
     onTextLinesChange: setTextLines,
     onSelectText: setSelectedTextId,
+    selectedTextIdRef,
   });
 
   /**
@@ -415,6 +455,44 @@ export default function DesignerApp() {
   }, [images.length]);
 
   /**
+   * Show a live preview once the editor is no longer on screen.
+   *
+   * The controls run well below the tag, so by the time the customer is
+   * adjusting rotation or spacing the editor has scrolled away and they cannot
+   * see what their change did. This mirrors the MOCKUP - the finished tag, not
+   * the workspace - because that is the question being asked while dragging a
+   * slider. The editor's guides and bleed ring would only be a second set of
+   * controls that cannot be used.
+   */
+  useEffect(() => {
+    const panel = previewPanelRef.current;
+    if (!panel || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => setPanelVisible(entries[0].isIntersecting),
+      { threshold: 0.12 }
+    );
+    io.observe(panel);
+    return () => io.disconnect();
+  }, []);
+
+  // Copy the mockup into the floating canvas whenever the design changes.
+  useEffect(() => {
+    const dst = floatCanvasRef.current;
+    const src = mockupCanvasRef.current;
+    if (!dst || !src || !src.width) return;
+    const ctx = dst.getContext("2d");
+    if (!ctx) return;
+    const w = 320;
+    const h = Math.round((src.height / src.width) * w);
+    dst.width = w;
+    dst.height = h;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(src, 0, 0, w, h);
+  }, [mockupRevision, panelVisible, floatDismissed, portrait]);
+
+  /**
    * Tell WordPress how tall this page actually is.
    *
    * An iframe's height is set by the PARENT document and can never be set by
@@ -506,6 +584,20 @@ export default function DesignerApp() {
     const id = selectedBgId || images[0]?.id;
     if (!id) return;
     setImages((prev) => prev.map((img) => (img.id === id ? scaleImageUniform(img, factor) : img)));
+  }
+
+  /**
+   * Turn the picture 180 degrees.
+   *
+   * Mainly for the vertical editor: an upload or an AI image can come out the
+   * wrong way up once the tag is upright, and dragging cannot fix that.
+   */
+  function rotateActiveImage() {
+    const id = selectedBgId || images[0]?.id;
+    if (!id) return;
+    setImages((prev) =>
+      prev.map((img) => (img.id === id ? { ...img, rotation: (((img.rotation + 180) % 360) + 360) % 360 } : img))
+    );
   }
 
   function fileToDataUrl(file: File): Promise<string> {
@@ -623,9 +715,10 @@ export default function DesignerApp() {
     await addAiImage(url);
     setFitMode("manual");
     setAiOpen(false);
-    setAiResults([]);
-    setAiSeeds([]);
     setAiLoading(false);
+    // The generated set is deliberately NOT cleared. Picking one image used to
+    // discard the other two, so changing your mind meant generating again from
+    // scratch. They stay until a new set is generated.
   }
 
   function addTextLine() {
@@ -636,7 +729,29 @@ export default function DesignerApp() {
         id: uid(),
         text: "",
         fontFamily: "Arial",
-        fontSize: 32,
+        bold: false,
+        italic: false,
+        underline: false,
+        strike: false,
+        shadow: { enabled: false, color: "#000000", opacity: 0.5, dx: 6, dy: 6, blur: 8 },
+        /*
+         * In the vertical editor the whole canvas is displayed rotated 90
+         * degrees CLOCKWISE, so canvas +x appears as screen-down and text drawn
+         * at 0 comes out sideways. Images already compensate the same way, with
+         * rotation -90 when added in portrait.
+         *
+         * 270 makes the glyphs read upright on screen AND sends a stacked line
+         * downward instead of upward - the rotation transform carries the stack
+         * with it, so one value fixes both.
+         */
+        angle: portraitRef.current ? 270 : 0,
+        stacked: false,
+        letterSpacing: 0,
+        // 180 px is 3.58 mm cap height on the 17.9 mm tag - 20% of its height.
+        // Measured against the manufacturer's own sample, where a line of text
+        // occupies 19.7%. The old default of 32 was 0.63 mm, about 4%, so small
+        // that customers could barely see the text appear as they typed.
+        fontSize: 180,
         color: "#ffffff",
         x: CANVAS_W * 0.5,
         y: CANVAS_H * 0.5,
@@ -659,22 +774,7 @@ export default function DesignerApp() {
         )}
       </div>
 
-      <div className="preview-panel">
-        <div className="bleed-callout">
-          <label className="checkbox-row inline">
-            <input
-              type="checkbox"
-              checked={overlayWhite}
-              onChange={(e) => setOverlayWhite(e.target.checked)}
-            />
-            <span>{extra.overlayHint}</span>
-          </label>
-          <div className="bleed-pointer">
-            <span className="bleed-pointer-text">{extra.bleedLabel}</span>
-            <span className="bleed-pointer-line" aria-hidden="true" />
-          </div>
-        </div>
-
+      <div className="preview-panel" ref={previewPanelRef}>
         <div className={`preview-wrap${portrait ? " portrait" : ""}`}>
           <div className={`preview-stack${portrait ? " portrait" : ""}`} ref={previewStackRef}>
             {!canvasReady && <KeyTagPlaceholder />}
@@ -727,6 +827,16 @@ export default function DesignerApp() {
               disabled={images.length === 0}
             >
               +
+            </button>
+            <button
+              type="button"
+              className="btn secondary compact"
+              onClick={rotateActiveImage}
+              title={extra.imageFlip}
+              aria-label={extra.imageFlip}
+              disabled={images.length === 0}
+            >
+              180&deg;
             </button>
           </div>
         </div>
@@ -875,7 +985,7 @@ export default function DesignerApp() {
               <div className="text-row">
                 <div className="field">
                   <select value={line.fontFamily} onChange={(e) => updateLine(line.id, { fontFamily: e.target.value })}>
-                    {FONTS.map((f) => (
+                    {TEXT_FONTS.map((f) => (
                       <option key={f}>{f}</option>
                     ))}
                   </select>
@@ -896,6 +1006,194 @@ export default function DesignerApp() {
                     aria-label={labels.textColor}
                   />
                 </div>
+              </div>
+
+              <div className="text-row text-layout-row">
+                <div className="field">
+                  <label>{extra.textAngle}</label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    step={1}
+                    value={line.angle ?? 0}
+                    onChange={(e) => updateLine(line.id, { angle: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="field field-narrow">
+                  <label>&deg;</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={360}
+                    value={Math.round(line.angle ?? 0)}
+                    onChange={(e) => updateLine(line.id, { angle: ((Number(e.target.value) % 360) + 360) % 360 })}
+                  />
+                </div>
+                <button type="button" className="btn secondary compact" onClick={() => updateLine(line.id, { angle: 0 })}>
+                  0&deg;
+                </button>
+                <button
+                  type="button"
+                  className="btn secondary compact"
+                  title="Rotate 90 degrees clockwise"
+                  onClick={() =>
+                    // Steps ROUND: 0 -> 90 -> 180 -> 270 -> 0. Setting it to a
+                    // fixed 90 meant a second click did nothing, so the only way
+                    // to reach 180 or 270 was the slider.
+                    updateLine(line.id, { angle: (((line.angle ?? 0) + 90) % 360 + 360) % 360 })
+                  }
+                >
+                  +90&deg;
+                </button>
+                <label className="checkbox-row inline">
+                  <input
+                    type="checkbox"
+                    checked={!!line.stacked}
+                    onChange={(e) => updateLine(line.id, { stacked: e.target.checked })}
+                  />
+                  <span>{extra.textStacked}</span>
+                </label>
+                <div className="field">
+                  <label>{extra.textSpacing}</label>
+                  <input
+                    type="range"
+                    min={-40}
+                    max={120}
+                    step={1}
+                    value={line.letterSpacing ?? 0}
+                    onChange={(e) => updateLine(line.id, { letterSpacing: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+
+              <div className="text-row text-style-row">
+                <button
+                  type="button"
+                  className={`btn compact${line.bold ? " active" : ""}`}
+                  style={{ fontWeight: "bold" }}
+                  onClick={() => updateLine(line.id, { bold: !line.bold })}
+                  aria-pressed={!!line.bold}
+                >
+                  B
+                </button>
+                <button
+                  type="button"
+                  className={`btn compact${line.italic ? " active" : ""}`}
+                  style={{ fontStyle: "italic" }}
+                  onClick={() => updateLine(line.id, { italic: !line.italic })}
+                  aria-pressed={!!line.italic}
+                >
+                  I
+                </button>
+                <button
+                  type="button"
+                  className={`btn compact${line.underline ? " active" : ""}`}
+                  style={{ textDecoration: "underline" }}
+                  onClick={() => updateLine(line.id, { underline: !line.underline })}
+                  aria-pressed={!!line.underline}
+                >
+                  U
+                </button>
+                <button
+                  type="button"
+                  className={`btn compact${line.strike ? " active" : ""}`}
+                  style={{ textDecoration: "line-through" }}
+                  onClick={() => updateLine(line.id, { strike: !line.strike })}
+                  aria-pressed={!!line.strike}
+                >
+                  S
+                </button>
+
+                <label className="checkbox-row inline shadow-toggle">
+                  <input
+                    type="checkbox"
+                    checked={!!line.shadow?.enabled}
+                    onChange={(e) =>
+                      updateLine(line.id, {
+                        shadow: {
+                          color: line.shadow?.color ?? "#000000",
+                          opacity: line.shadow?.opacity ?? 0.5,
+                          dx: line.shadow?.dx ?? 6,
+                          dy: line.shadow?.dy ?? 6,
+                          blur: line.shadow?.blur ?? 8,
+                          enabled: e.target.checked,
+                        },
+                      })
+                    }
+                  />
+                  <span>{extra.shadowHint}</span>
+                </label>
+              </div>
+
+              {line.shadow?.enabled && (
+                <div className="text-row shadow-row">
+                  <div className="field">
+                    <label>{extra.shadowColor}</label>
+                    <input
+                      type="color"
+                      value={line.shadow.color}
+                      onChange={(e) =>
+                        updateLine(line.id, { shadow: { ...line.shadow!, color: e.target.value } })
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label>{extra.shadowOpacity}</label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={line.shadow.opacity}
+                      onChange={(e) =>
+                        updateLine(line.id, { shadow: { ...line.shadow!, opacity: Number(e.target.value) } })
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label>{extra.shadowSize}</label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={60}
+                      step={1}
+                      value={line.shadow.blur}
+                      onChange={(e) =>
+                        updateLine(line.id, { shadow: { ...line.shadow!, blur: Number(e.target.value) } })
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label>{extra.shadowX}</label>
+                    <input
+                      type="range"
+                      min={-60}
+                      max={60}
+                      step={1}
+                      value={line.shadow.dx}
+                      onChange={(e) =>
+                        updateLine(line.id, { shadow: { ...line.shadow!, dx: Number(e.target.value) } })
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label>{extra.shadowY}</label>
+                    <input
+                      type="range"
+                      min={-60}
+                      max={60}
+                      step={1}
+                      value={line.shadow.dy}
+                      onChange={(e) =>
+                        updateLine(line.id, { shadow: { ...line.shadow!, dy: Number(e.target.value) } })
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="text-row">
                 <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
                   <button
                     className="btn danger compact"
@@ -956,6 +1254,20 @@ export default function DesignerApp() {
           </div>
         </div>
       )}
+      {!panelVisible && !floatDismissed && (
+        <div className="float-preview" aria-live="polite">
+          <button
+            type="button"
+            className="float-preview-close"
+            onClick={() => setFloatDismissed(true)}
+            aria-label="Close preview"
+          >
+            &times;
+          </button>
+          <canvas ref={floatCanvasRef} />
+        </div>
+      )}
+
     </div>
   );
 }

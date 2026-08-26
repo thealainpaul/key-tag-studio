@@ -1,9 +1,12 @@
 import { useEffect, useRef } from "react";
-import type { DesignImage, TextLine } from "@/lib/design";
+import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
 import { pinchImageDimensions, pointerDistance, type PinchState } from "@/lib/canvas-gestures";
 import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
+import { clampQrSize, QR_DEFAULT_PX, qrDefaultCenter } from "@/lib/qrcode-render";
 
-type DragState = { type: "text" | "image"; id: string; ox: number; oy: number };
+type DragState =
+  | { type: "text" | "image" | "qr"; id: string; ox: number; oy: number }
+  | { type: "rotate"; id: string; ox: number; oy: number; cx: number; cy: number; start: number };
 type PointerPoint = { x: number; y: number };
 
 type Options = {
@@ -14,12 +17,17 @@ type Options = {
   portraitRef?: React.MutableRefObject<boolean>;
   imagesRef: React.MutableRefObject<DesignImage[]>;
   textLinesRef: React.MutableRefObject<TextLine[]>;
+  /** The QR, so it can be dragged like text and images rather than only nudged. */
+  qrCodeRef?: React.MutableRefObject<DesignPayload["qrCode"] | undefined>;
+  onQrChange?: (patch: { x: number; y: number }) => void;
   selectedBgIdRef: React.MutableRefObject<string | null>;
   tagColorRef: React.MutableRefObject<string>;
   redrawContent: (images?: DesignImage[], textLines?: TextLine[], tagColor?: string) => void;
   onImagesChange: (images: DesignImage[]) => void;
   onTextLinesChange: (lines: TextLine[]) => void;
   onSelectText?: (id: string) => void;
+  /** Id of the selected line, so its rotation handle can be hit-tested. */
+  selectedTextIdRef?: React.MutableRefObject<string | null>;
 };
 
 const MIN_PINCH_DIST = 24;
@@ -31,12 +39,15 @@ export function useCanvasGestures({
   portraitRef,
   imagesRef,
   textLinesRef,
+  qrCodeRef,
+  onQrChange,
   selectedBgIdRef,
   tagColorRef,
   redrawContent,
   onImagesChange,
   onTextLinesChange,
   onSelectText,
+  selectedTextIdRef,
 }: Options) {
   const dragRef = useRef<DragState | null>(null);
   const pinchRef = useRef<PinchState | null>(null);
@@ -81,6 +92,56 @@ export function useCanvasGestures({
     if (!ctx) return;
     const bg = activeImage();
     const { x, y } = canvasPoint(clientX, clientY);
+    // QR first: it is drawn on top of everything, so it must be grabbed first.
+    // It used to be absent from this hit test entirely, which is why it could
+    // only be nudged with the controls while text and images could be dragged.
+    const qr = qrCodeRef?.current;
+    if (qr?.enabled && qr.url?.trim()) {
+      // qr.x / qr.y are the CENTRE, not the top-left - drawQr computes
+      // left = centerX - size/2. Treating them as a corner puts this box half a
+      // QR down and to the right of the code, so it only catches in the overlap.
+      //
+      // The size must be the CLAMPED one too, because that is what is drawn.
+      const size = clampQrSize(qr.size ?? QR_DEFAULT_PX);
+      const fallback = qrDefaultCenter(size);
+      const cx = qr.x ?? fallback.x;
+      const cy = qr.y ?? fallback.y;
+      const half = size / 2;
+      if (x >= cx - half && x <= cx + half && y >= cy - half && y <= cy + half) {
+        dragRef.current = { type: "qr", id: "qr", ox: x - cx, oy: y - cy };
+        return;
+      }
+    }
+
+    // Rotation handle of the SELECTED line, checked before the text itself so
+    // dragging inside the text still moves it. The handle sits outside the
+    // glyphs, which is how Figma and Illustrator keep the two apart.
+    const selId = selectedTextIdRef?.current;
+    if (selId) {
+      const sel = textLinesRef.current.find((l) => l.id === selId);
+      if (sel?.text.trim()) {
+        ctx.font = `${sel.italic ? "italic " : ""}${sel.bold ? "bold " : ""}${sel.fontSize}px "${sel.fontFamily}"`;
+        const w = ctx.measureText(sel.text).width;
+        const reach = (sel.stacked ? sel.fontSize * 1.2 : w / 2) + sel.fontSize * 0.9;
+        const a = ((sel.angle ?? 0) % 360) * (Math.PI / 180);
+        const hx = sel.x + Math.cos(a) * reach;
+        const hy = sel.y + Math.sin(a) * reach;
+        const r = Math.max(sel.fontSize * 0.45, 26);
+        if ((x - hx) ** 2 + (y - hy) ** 2 <= r * r) {
+          dragRef.current = {
+            type: "rotate",
+            id: sel.id,
+            ox: 0,
+            oy: 0,
+            cx: sel.x,
+            cy: sel.y,
+            start: (sel.angle ?? 0) - (Math.atan2(y - sel.y, x - sel.x) * 180) / Math.PI,
+          };
+          return;
+        }
+      }
+    }
+
     const hit = [...textLinesRef.current].reverse().find((line) => line.text.trim() && hitText(ctx, line, x, y));
 
     if (hit) {
@@ -96,6 +157,21 @@ export function useCanvasGestures({
   function moveDrag(clientX: number, clientY: number) {
     if (!dragRef.current) return;
     const { x, y } = canvasPoint(clientX, clientY);
+
+    if (dragRef.current.type === "qr") {
+      onQrChange?.({ x: x - dragRef.current.ox, y: y - dragRef.current.oy });
+      return;
+    }
+
+    if (dragRef.current.type === "rotate") {
+      const d = dragRef.current;
+      let deg = d.start + (Math.atan2(y - d.cy, x - d.cx) * 180) / Math.PI;
+      deg = ((deg % 360) + 360) % 360;
+      const next = textLinesRef.current.map((l) => (l.id === d.id ? { ...l, angle: deg } : l));
+      textLinesRef.current = next;
+      redrawContent();
+      return;
+    }
 
     if (dragRef.current.type === "text") {
       const next = textLinesRef.current.map((line) =>
@@ -114,6 +190,15 @@ export function useCanvasGestures({
 
   function endDrag() {
     if (!dragRef.current) return;
+    if (dragRef.current.type === "qr") {
+      dragRef.current = null;
+      return;
+    }
+    if (dragRef.current.type === "rotate") {
+      onTextLinesChange([...textLinesRef.current]);
+      dragRef.current = null;
+      return;
+    }
     if (dragRef.current.type === "text") onTextLinesChange([...textLinesRef.current]);
     else onImagesChange([...imagesRef.current]);
     dragRef.current = null;

@@ -49,7 +49,7 @@ button, input, select, textarea { font: inherit; }
   border-radius: 10px;
   padding: 0.5rem;
   margin-bottom: 0.75rem;
-  touch-action: none;
+  touch-action: pan-y;
   overscroll-behavior: contain;
 }
 
@@ -60,40 +60,40 @@ button, input, select, textarea { font: inherit; }
 
 /*
  * The BORDER canvas is now the sizing element, because it is the larger of the
- * two: tag 2173x940 plus 94px of bleed on every side = 2361x1128. The artwork
+ * two: tag 2079x846 plus 47px of bleed on every side = 2173x940. The artwork
  * canvas is inset within it.
  *
- * Width is 108.6516% (= 2361/2173) so the TAG keeps exactly the on-screen size
+ * Width is 104.5214% (= 2173/2079) so the TAG keeps exactly the on-screen size
  * it had before the bleed was moved outside it. Scaling the editor up is what
  * keeps the artwork area a true mirror of the mockup below; letting the stack
  * stay at 100% would shrink the tag by 8%.
  */
 .preview-stack {
   position: relative;
-  width: 108.6516%;
-  max-width: 108.6516%;
+  width: 104.5214%;
+  max-width: 104.5214%;
   margin: 0 auto;
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 /* Sits over the artwork area only - same inset as .preview-content. */
 .preview-placeholder {
   position: absolute;
-  left: 3.9814%;
-  top: 8.3333%;
-  width: 92.0373%;
-  height: 83.3333%;
+  left: 2.1629%;
+  top: 5.0000%;
+  width: 95.6742%;
+  height: 90.0000%;
   display: block;
   pointer-events: none;
 }
 
-/* Inset by exactly the bleed: 94/2361 across, 94/1128 down. */
+/* Inset by exactly the bleed: 47/2173 across, 47/940 down. */
 .preview-content {
   position: absolute;
-  left: 3.9814%;
-  top: 8.3333%;
-  width: 92.0373%;
-  height: 83.3333%;
+  left: 2.1629%;
+  top: 5.0000%;
+  width: 95.6742%;
+  height: 90.0000%;
   display: block;
   touch-action: none;
   cursor: grab;
@@ -103,7 +103,7 @@ button, input, select, textarea { font: inherit; }
 
 .preview-content:active { cursor: grabbing; }
 
-/* The sizing element. Its intrinsic 2361x1128 ratio sets the stack height. */
+/* The sizing element. Its intrinsic 2173x940 ratio sets the stack height. */
 .preview-border {
   position: relative;
   display: block;
@@ -429,60 +429,94 @@ label { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(-
   position: relative;
   width: 100%;
   /* Rotated, the stack's WIDTH becomes its height - so the wrapper's height
-     must equal the stack width, which is 108.6516% of the wrapper. Hence
-     1 / 1.086516. The tag's own 19.9/46 ratio here reserved 2006px for an
-     868px tag and left 569px of dead space - measured, not guessed. */
-  aspect-ratio: 1 / 1.086516;
+     must equal the stack width, which is 104.5214% of the wrapper. Hence
+     1 / 1.045214. Using the tag's own aspect here instead leaves dead space above and
+     below - measured, not guessed. */
+  aspect-ratio: 1 / 1.045214;
 }
 
 .preview-stack.portrait {
   position: absolute;
   top: 50%;
   left: 50%;
-  /* Inherits the base 108.6516%. Changing it here breaks the wrapper ratio
+  /* Inherits the base 104.5214%. Changing it here breaks the wrapper ratio
      above, which is derived from exactly this number. */
-  width: 108.6516%;
+  width: 104.5214%;
   transform: translate(-50%, -50%) rotate(90deg);
   transform-origin: center center;
 }
 
 
-/* ── Bleed explainer above the editor ── */
-.bleed-callout {
+
+/* Rotation / stacking / spacing row on each text block. */
+.text-layout-row {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
+  align-items: flex-end;
+  gap: 0.5rem;
   flex-wrap: wrap;
-  margin-bottom: 0.25rem;
 }
 
-.bleed-callout .checkbox-row.inline { flex: 1 1 300px; }
+.text-layout-row .field { flex: 1 1 130px; min-width: 110px; }
+.text-layout-row .field-narrow { flex: 0 0 74px; min-width: 74px; }
+.text-layout-row .checkbox-row.inline { flex: 1 1 200px; }
 
-.bleed-pointer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 0 1 auto;
-  text-align: center;
-  min-width: 0;
+
+/*
+ * Floating live preview.
+ *
+ * Appears only once the editor has scrolled out of view, so it never competes
+ * with the real thing. Shows the MOCKUP, i.e. the finished tag.
+ *
+ * position: fixed is deliberate - the iframe height reporter skips fixed and
+ * absolute elements, so this cannot inflate the embed height.
+ */
+.float-preview {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 40;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #d8d8d8);
+  border-radius: 10px;
+  padding: 8px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
+  line-height: 0;
 }
 
-.bleed-pointer-text {
-  font-size: 14px;
-  line-height: 1.35;
+.float-preview canvas {
+  display: block;
+  width: 320px;
+  height: auto;
+  border-radius: 6px;
 }
 
-/* The rule dropping from the label to the top of the bleed ring. */
-.bleed-pointer-line {
-  width: 1px;
-  height: 42px;
-  background: currentColor;
-  opacity: 0.85;
-  margin-top: 6px;
+.float-preview-close {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border, #d8d8d8);
+  background: var(--surface, #fff);
+  color: #444;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
 }
 
+/* On a phone it docks to the top as a slim strip - there is no corner to spare. */
 @media (max-width: 640px) {
-  .bleed-callout { flex-direction: column; align-items: stretch; }
-  .bleed-pointer-line { height: 28px; }
+  .float-preview {
+    right: 8px;
+    left: 8px;
+    bottom: auto;
+    top: 8px;
+    padding: 6px;
+    display: flex;
+    justify-content: center;
+  }
+  .float-preview canvas { width: min(260px, 70vw); }
+  .float-preview-close { top: -7px; right: -7px; }
 }
