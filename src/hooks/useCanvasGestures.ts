@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
 import { pinchImageDimensions, pointerDistance, type PinchState } from "@/lib/canvas-gestures";
 import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
-import { QR_DEFAULT_PX, qrDefaultCenter } from "@/lib/qrcode-render";
+import { clampQrSize, QR_DEFAULT_PX, qrDefaultCenter } from "@/lib/qrcode-render";
 
 type DragState = { type: "text" | "image" | "qr"; id: string; ox: number; oy: number };
 type PointerPoint = { x: number; y: number };
@@ -92,12 +92,18 @@ export function useCanvasGestures({
     // only be nudged with the controls while text and images could be dragged.
     const qr = qrCodeRef?.current;
     if (qr?.enabled && qr.url?.trim()) {
-      const size = qr.size ?? QR_DEFAULT_PX;
+      // qr.x / qr.y are the CENTRE, not the top-left - drawQr computes
+      // left = centerX - size/2. Treating them as a corner puts this box half a
+      // QR down and to the right of the code, so it only catches in the overlap.
+      //
+      // The size must be the CLAMPED one too, because that is what is drawn.
+      const size = clampQrSize(qr.size ?? QR_DEFAULT_PX);
       const fallback = qrDefaultCenter(size);
-      const qx = qr.x ?? fallback.x;
-      const qy = qr.y ?? fallback.y;
-      if (x >= qx && x <= qx + size && y >= qy && y <= qy + size) {
-        dragRef.current = { type: "qr", id: "qr", ox: x - qx, oy: y - qy };
+      const cx = qr.x ?? fallback.x;
+      const cy = qr.y ?? fallback.y;
+      const half = size / 2;
+      if (x >= cx - half && x <= cx + half && y >= cy - half && y <= cy + half) {
+        dragRef.current = { type: "qr", id: "qr", ox: x - cx, oy: y - cy };
         return;
       }
     }
