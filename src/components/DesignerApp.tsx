@@ -718,7 +718,11 @@ export default function DesignerApp() {
         angle: 0,
         stacked: false,
         letterSpacing: 0,
-        fontSize: 32,
+        // 180 px is 3.58 mm cap height on the 17.9 mm tag - 20% of its height.
+        // Measured against the manufacturer's own sample, where a line of text
+        // occupies 19.7%. The old default of 32 was 0.63 mm, about 4%, so small
+        // that customers could barely see the text appear as they typed.
+        fontSize: 180,
         color: "#ffffff",
         x: CANVAS_W * 0.5,
         y: CANVAS_H * 0.5,
