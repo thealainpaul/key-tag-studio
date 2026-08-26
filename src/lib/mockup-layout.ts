@@ -5,7 +5,7 @@
  */
 export const MOCKUP_PHOTO = {
   src: "/keytag-mockup-top.png",
-  width: 2055,
+  width: 1882,
   height: 674,
 };
 
@@ -38,4 +38,4 @@ export const MOCKUP_CANVAS_PAD_BOTTOM = 40;
  * It is one pixel wider than the punched hole (1385) on purpose, so it covers
  * it; the metal on top trims the overhang.
  */
-export const MOCKUP_FACE = { x: 614, y: 55, w: 1386, h: 564 };
+export const MOCKUP_FACE = { x: 442, y: 55, w: 1386, h: 564 };

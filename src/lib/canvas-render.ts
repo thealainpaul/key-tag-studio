@@ -95,53 +95,49 @@ function shadowRgba(css: string, alpha: number): string {
 }
 
 /**
- * Apply the manufacturer's 80% ink ceiling to a canvas in place.
+ * The manufacturer's 80% ink rule, for SOLID ink areas.
  *
  * "Barcodes, oder deren Hintergruende sollten grundsaetzlich, wie auch
  * Schriften, auf 80% schwarz, also Grau, gestaltet werden."
  *
- * 80% ink means 20% of the paper still shows, so the darkest tone printable is
- * 51 of 255. This CLAMPS only the pixels that would go past that ceiling and
- * leaves everything else exactly as the customer made it.
+ * The reason is ink spread, not contrast. A 100% solid lays down enough ink to
+ * creep sideways and close the white gaps between the modules, and the code
+ * stops scanning. Less ink, less spread.
  *
- * It does NOT lift the whole image. An earlier version did, which greyed every
- * picture and invented a grey background where there was none.
+ * Applied to the QR modules AND to the base colour behind them. They are the
+ * same requirement: the base is solid ink pressed right against the code's
+ * white gaps, so if it is laid at 100% it spreads into them and the gaps close
+ * just as surely as if the modules themselves were too heavy. He named the
+ * barcode, its background and the Grundflaeche together for that reason.
  *
- * The three channels are scaled by the SAME factor, so hue survives. A very
- * dark brown (40, 20, 10) reads as near-black in print, so it is lifted to
- * (51, 26, 13) - still brown, no longer darker than 80% ink. Clamping each
- * channel on its own would have flattened it to grey.
+ * NOT applied to photographs. They have no fine white gaps to close, and
+ * earlier versions that capped the whole image flattened shadows and greyed
+ * entire pictures.
+ *
+ * 80% ink leaves 20% of the substrate showing, so the darkest tone is 51/255.
  */
-export function applyInkCeiling(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  const img = ctx.getImageData(0, 0, w, h);
-  const d = img.data;
-  for (let i = 0; i < d.length; i += 4) {
-    if (d[i + 3] === 0) continue;
-
-    // How dark the pixel READS is set by its brightest channel. If that is
-    // already at or above the ceiling the pixel prints lighter than 80% ink
-    // and is left completely alone.
-    const brightest = Math.max(d[i], d[i + 1], d[i + 2]);
-    if (brightest >= MIN_CHANNEL) continue;
-
-    if (brightest === 0) {
-      // Absolute black. There is no ratio to preserve, so it becomes the
-      // ceiling itself - 80% black, which is the grey the printer asked for.
-      d[i] = MIN_CHANNEL;
-      d[i + 1] = MIN_CHANNEL;
-      d[i + 2] = MIN_CHANNEL;
-      continue;
-    }
-
-    // Scale all three by the same factor, so the hue is unchanged and only the
-    // darkness moves. A very dark brown (40, 20, 10) becomes (51, 26, 13):
-    // still brown, no longer darker than 80% ink.
-    const k = MIN_CHANNEL / brightest;
-    d[i] = Math.round(d[i] * k);
-    d[i + 1] = Math.round(d[i + 1] * k);
-    d[i + 2] = Math.round(d[i + 2] * k);
+export function capSolidInk(color: string): string {
+  const hex = color.trim();
+  let r: number, g: number, b: number;
+  if (/^#[0-9a-f]{3}$/i.test(hex)) {
+    r = parseInt(hex[1] + hex[1], 16);
+    g = parseInt(hex[2] + hex[2], 16);
+    b = parseInt(hex[3] + hex[3], 16);
+  } else if (/^#[0-9a-f]{6}$/i.test(hex)) {
+    r = parseInt(hex.slice(1, 3), 16);
+    g = parseInt(hex.slice(3, 5), 16);
+    b = parseInt(hex.slice(5, 7), 16);
+  } else {
+    return color; // not a form we can read - left untouched rather than guessed at
   }
-  ctx.putImageData(img, 0, 0);
+
+  const m = Math.max(r, g, b);
+  if (m >= MIN_CHANNEL) return color; // already lighter than 80% ink
+
+  // Add the same amount to all three, so the customer's chosen hue survives.
+  const lift = MIN_CHANNEL - m;
+  const to = (v: number) => Math.min(255, v + lift).toString(16).padStart(2, "0");
+  return `#${to(r)}${to(g)}${to(b)}`;
 }
 
 /**
@@ -166,7 +162,7 @@ function paintBleedRing(
   // Tag colour first, so anywhere the customer's picture does not reach shows
   // the colour they picked rather than nothing.
   ctx.save();
-  ctx.fillStyle = tagColor;
+  ctx.fillStyle = capSolidInk(tagColor);
   ctx.fillRect(-BLEED_PX, -BLEED_PX, BLEED_CANVAS_W, BLEED_CANVAS_H);
   ctx.restore();
 
@@ -216,7 +212,7 @@ function paintTagContent(
 
   ctx.save();
   metrics.drawGeometry(ctx, 0);
-  ctx.fillStyle = tagColor;
+  ctx.fillStyle = capSolidInk(tagColor);
   ctx.fill();
   ctx.restore();
 
@@ -306,7 +302,7 @@ function paintTagContent(
       qrCode.x ?? fallback.x,
       qrCode.y ?? fallback.y,
       size,
-      qrCode.color ?? "#000000",
+      capSolidInk(qrCode.color ?? "#000000"),
       qrCode.halo ?? true
     );
     ctx.restore();
@@ -330,10 +326,6 @@ export function drawContentLayer(
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
   paintTagContent(ctx, tagColor, images, textLines, cache, qrCode);
-
-  // The manufacturer's 80% ink ceiling, applied last so it covers the
-  // uploaded picture, the tag colour, the text and the QR alike.
-  applyInkCeiling(ctx, CANVAS_W, CANVAS_H);
 }
 
 /**
@@ -371,10 +363,6 @@ export function drawPrintLayer(
   paintTagContent(ctx, tagColor, images, textLines, cache, qrCode);
 
   ctx.restore();
-
-  // The manufacturer's 80% ink ceiling, applied last so it covers the
-  // uploaded picture, the tag colour, the text and the QR alike.
-  applyInkCeiling(ctx, BLEED_CANVAS_W, BLEED_CANVAS_H);
 }
 
 /**
@@ -400,10 +388,6 @@ export function drawBleedLayer(
   ctx.translate(BLEED_PX, BLEED_PX);
   paintBleedRing(ctx, tagColor, images, cache);
   ctx.restore();
-
-  // The manufacturer's 80% ink ceiling, applied last so it covers the
-  // uploaded picture, the tag colour, the text and the QR alike.
-  applyInkCeiling(ctx, BLEED_CANVAS_W, BLEED_CANVAS_H);
 }
 
 /**

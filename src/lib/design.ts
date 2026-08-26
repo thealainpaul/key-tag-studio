@@ -142,6 +142,11 @@ export const AI_GEN_PORTRAIT_H = AI_GEN_W;
 /**
  * The AI must be told which shape it is composing into. Asked for a wide banner
  * and shown upright, the subject ends up cropped away.
+ *
+ * It is NOT told about the 80% ink ceiling. Words like "80% grey" read to the
+ * model as a styling instruction and it started returning pictures with grey
+ * and black backgrounds. The ceiling is applied to the pixels afterwards by
+ * applyInkCeiling, so the model has no need to know about it.
  */
 
 /**
@@ -194,8 +199,8 @@ export function liftColor(css: string): string {
 
 export function aiPromptSuffix(orientation: "landscape" | "portrait"): string {
   return orientation === "portrait"
-    ? "tall vertical banner photo, subject upright, realistic, no pure black, darkest tones at 80% grey"
-    : "wide horizontal banner photo, subject on its side, realistic, no pure black, darkest tones at 80% grey";
+    ? "tall vertical banner photo, subject upright, realistic"
+    : "wide horizontal banner photo, subject on its side, realistic";
 }
 
 /**
@@ -205,8 +210,9 @@ export function aiPromptSuffix(orientation: "landscape" | "portrait"): string {
  * is 44.0 x 17.9 mm, so landscape is 1280 x 521 and portrait is that swapped.
  * Asking for a wide banner and then showing it upright crops the subject away.
  *
- * The 80% grey instruction matches aiPromptSuffix, so both AI routes ask for
- * the same thing the manufacturer requires.
+ * Uses the same aiPromptSuffix as the main route, so both ask for the same
+ * thing. Neither mentions the ink ceiling - that is applied to the pixels
+ * later, and putting it in the prompt made the model draw grey backgrounds.
  */
 export function makePollinationsUrl(
   userPrompt: string,
@@ -216,7 +222,7 @@ export function makePollinationsUrl(
   orientation: "landscape" | "portrait" = "landscape"
 ): string {
   const text = simple
-    ? `${userPrompt.trim()}, ${orientation === "portrait" ? "tall" : "wide"} banner photo, no pure black, darkest tones at 80% grey`
+    ? `${userPrompt.trim()}, ${orientation === "portrait" ? "tall" : "wide"} banner photo`
     : `${userPrompt.trim()}, ${aiPromptSuffix(orientation)}`;
   const w = orientation === "portrait" ? AI_GEN_PORTRAIT_W : AI_GEN_W;
   const h = orientation === "portrait" ? AI_GEN_PORTRAIT_H : AI_GEN_H;
