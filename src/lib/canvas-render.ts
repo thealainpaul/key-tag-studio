@@ -241,47 +241,84 @@ function paintTagContent(
     const style = line.italic ? "italic " : "";
     ctx.font = `${style}${weight}${line.fontSize}px "${line.fontFamily}"`;
 
+    const tracking = line.letterSpacing ?? 0;
+    const chars = Array.from(line.text);
+
+    // Advance of the whole line, tracking included. measureText does not know
+    // about our tracking, so it is added per gap.
+    const runWidth =
+      chars.reduce((w, c) => w + ctx.measureText(c).width, 0) + tracking * Math.max(0, chars.length - 1);
+
+    const m0 = ctx.measureText(line.text);
+    const ascent = m0.actualBoundingBoxAscent || line.fontSize * 0.35;
+    const descent = m0.actualBoundingBoxDescent || line.fontSize * 0.35;
+
+    // Stacked: each glyph stays UPRIGHT and they run downward. The step is the
+    // glyph height plus tracking, so the same control spaces both layouts.
+    const step = line.fontSize + tracking;
+    const stackHeight = line.stacked ? step * Math.max(0, chars.length - 1) : 0;
+
     ctx.save();
 
-    // Shadow. A light colour makes this read as a glow or a light source
-    // rather than a shadow, which is the point of leaving the colour free.
+    // Rotate about the line's own centre, so the text turns in place rather
+    // than swinging away from where the customer put it.
+    const angle = ((line.angle ?? 0) % 360) * (Math.PI / 180);
+    if (angle) {
+      ctx.translate(line.x, line.y);
+      ctx.rotate(angle);
+      ctx.translate(-line.x, -line.y);
+    }
+
     const sh = line.shadow;
     if (sh?.enabled) {
-      const a = Math.max(0, Math.min(1, sh.opacity));
-      ctx.shadowColor = shadowRgba(sh.color, a);
+      const alpha = Math.max(0, Math.min(1, sh.opacity));
+      ctx.shadowColor = shadowRgba(sh.color, alpha);
       ctx.shadowOffsetX = sh.dx;
       ctx.shadowOffsetY = sh.dy;
       ctx.shadowBlur = sh.blur;
     }
 
     ctx.fillStyle = line.color;
-    ctx.fillText(line.text, line.x, line.y);
+
+    if (line.stacked) {
+      const prevAlign = ctx.textAlign;
+      ctx.textAlign = "center";
+      let y = line.y - stackHeight / 2;
+      for (const c of chars) {
+        ctx.fillText(c, line.x, y);
+        y += step;
+      }
+      ctx.textAlign = prevAlign;
+    } else if (tracking) {
+      // Drawn glyph by glyph so the tracking is applied; fillText alone cannot.
+      const prevAlign = ctx.textAlign;
+      ctx.textAlign = "left";
+      let x = prevAlign === "center" ? line.x - runWidth / 2 : line.x;
+      for (const c of chars) {
+        ctx.fillText(c, x, line.y);
+        x += ctx.measureText(c).width + tracking;
+      }
+      ctx.textAlign = prevAlign;
+    } else {
+      ctx.fillText(line.text, line.x, line.y);
+    }
 
     // Rules are drawn without the shadow, otherwise a blurred bar doubles up
-    // under the glyphs and muddies small type.
-    if (line.underline || line.strike) {
+    // under the glyphs and muddies small type. Stacked text gets no rules -
+    // a single bar across a vertical column of letters is meaningless.
+    if ((line.underline || line.strike) && !line.stacked) {
       ctx.shadowColor = "transparent";
       ctx.shadowBlur = 0;
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
-      // Positioned from the MEASURED glyphs, not from a fraction of the font
-      // size. textBaseline is "middle" here, so line.y is the vertical centre;
-      // a fixed fraction put the underline inside the letters and the strike
-      // above centre. actualBoundingBox gives the real ink extent for whatever
-      // face and weight the customer picked.
-      const m = ctx.measureText(line.text);
-      const w = m.width;
+      const w = runWidth;
       const x0 = ctx.textAlign === "center" ? line.x - w / 2 : line.x;
       const thickness = Math.max(1, line.fontSize * 0.06);
-      const ascent = m.actualBoundingBoxAscent || line.fontSize * 0.35;
-      const descent = m.actualBoundingBoxDescent || line.fontSize * 0.35;
       ctx.fillStyle = line.color;
       if (line.underline) {
-        // Clear of the descenders, so "g" and "y" are not cut through.
         ctx.fillRect(x0, line.y + descent + thickness * 1.5, w, thickness);
       }
       if (line.strike) {
-        // Through the middle of the ink, not the middle of the line box.
         ctx.fillRect(x0, line.y - ascent / 2 + descent / 2 - thickness / 2, w, thickness);
       }
     }

@@ -41,7 +41,7 @@ const mmPx = mmToPx(1);
  * Two strings that were hardcoded in English and so never translated.
  * Kept here rather than in i18n.ts to avoid touching shared files.
  */
-const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHint: string; verticalHint: string; shadowHint: string; shadowColor: string; shadowOpacity: string; shadowSize: string; shadowX: string; shadowY: string }> = {
+const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHint: string; verticalHint: string; shadowHint: string; shadowColor: string; shadowOpacity: string; shadowSize: string; shadowX: string; shadowY: string; textAngle: string; textStacked: string; textSpacing: string }> = {
   de: {
     qrHint:
       "Kreuzen Sie dieses Feld an, wenn Sie einen QR-Code möchten, geben Sie dann Ihre URL unten ein und passen Sie Position und Farben mit den Steuerelementen darunter an.",
@@ -56,6 +56,9 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
     shadowSize: "Grösse",
     shadowX: "Horizontal",
     shadowY: "Vertikal",
+    textAngle: "Drehung",
+    textStacked: "Buchstaben untereinander",
+    textSpacing: "Zeichenabstand",
   },
   fr: {
     qrHint:
@@ -71,6 +74,9 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
     shadowSize: "Taille",
     shadowX: "Horizontal",
     shadowY: "Vertical",
+    textAngle: "Rotation",
+    textStacked: "Lettres l’une sous l’autre",
+    textSpacing: "Espacement",
   },
   it: {
     qrHint:
@@ -86,6 +92,9 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
     shadowSize: "Dimensione",
     shadowX: "Orizzontale",
     shadowY: "Verticale",
+    textAngle: "Rotazione",
+    textStacked: "Lettere una sotto l’altra",
+    textSpacing: "Spaziatura",
   },
   es: {
     qrHint:
@@ -101,6 +110,9 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
     shadowSize: "Tamaño",
     shadowX: "Horizontal",
     shadowY: "Vertical",
+    textAngle: "Rotación",
+    textStacked: "Letras una debajo de otra",
+    textSpacing: "Espaciado",
   },
   en: {
     qrHint:
@@ -116,6 +128,9 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
     shadowSize: "Size",
     shadowX: "Horizontal",
     shadowY: "Vertical",
+    textAngle: "Rotation",
+    textStacked: "Letters stacked downward",
+    textSpacing: "Letter spacing",
   },
 };
 
@@ -148,6 +163,11 @@ export default function DesignerApp() {
   const textLinesRef = useRef<TextLine[]>([]);
   const selectedBgIdRef = useRef<string | null>(null);
   const mockupCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  /** Floating live preview, shown once the editor scrolls out of view. */
+  const previewPanelRef = useRef<HTMLDivElement | null>(null);
+  const floatCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [panelVisible, setPanelVisible] = useState(true);
+  const [floatDismissed, setFloatDismissed] = useState(false);
   /**
    * The customer's source image exactly as it arrived — before fitCoverInFrame
    * cropped it to the tag. Only submitted when "design it for me" is ticked.
@@ -163,6 +183,8 @@ export default function DesignerApp() {
   const [textLines, setTextLines] = useState<TextLine[]>([]);
   const [selectedBgId, setSelectedBgId] = useState<string | null>(null);
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
+  const selectedTextIdRef = useRef<string | null>(null);
+  selectedTextIdRef.current = selectedTextId;
   const [showText, setShowText] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -264,6 +286,7 @@ export default function DesignerApp() {
     onImagesChange: setImages,
     onTextLinesChange: setTextLines,
     onSelectText: setSelectedTextId,
+    selectedTextIdRef,
   });
 
   /**
@@ -425,6 +448,44 @@ export default function DesignerApp() {
       /* ignore */
     }
   }, [images.length]);
+
+  /**
+   * Show a live preview once the editor is no longer on screen.
+   *
+   * The controls run well below the tag, so by the time the customer is
+   * adjusting rotation or spacing the editor has scrolled away and they cannot
+   * see what their change did. This mirrors the MOCKUP - the finished tag, not
+   * the workspace - because that is the question being asked while dragging a
+   * slider. The editor's guides and bleed ring would only be a second set of
+   * controls that cannot be used.
+   */
+  useEffect(() => {
+    const panel = previewPanelRef.current;
+    if (!panel || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => setPanelVisible(entries[0].isIntersecting),
+      { threshold: 0.12 }
+    );
+    io.observe(panel);
+    return () => io.disconnect();
+  }, []);
+
+  // Copy the mockup into the floating canvas whenever the design changes.
+  useEffect(() => {
+    const dst = floatCanvasRef.current;
+    const src = mockupCanvasRef.current;
+    if (!dst || !src || !src.width) return;
+    const ctx = dst.getContext("2d");
+    if (!ctx) return;
+    const w = 320;
+    const h = Math.round((src.height / src.width) * w);
+    dst.width = w;
+    dst.height = h;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(src, 0, 0, w, h);
+  }, [mockupRevision, panelVisible, floatDismissed, portrait]);
 
   /**
    * Tell WordPress how tall this page actually is.
@@ -654,6 +715,9 @@ export default function DesignerApp() {
         underline: false,
         strike: false,
         shadow: { enabled: false, color: "#000000", opacity: 0.5, dx: 6, dy: 6, blur: 8 },
+        angle: 0,
+        stacked: false,
+        letterSpacing: 0,
         fontSize: 32,
         color: "#ffffff",
         x: CANVAS_W * 0.5,
@@ -677,7 +741,7 @@ export default function DesignerApp() {
         )}
       </div>
 
-      <div className="preview-panel">
+      <div className="preview-panel" ref={previewPanelRef}>
         <div className={`preview-wrap${portrait ? " portrait" : ""}`}>
           <div className={`preview-stack${portrait ? " portrait" : ""}`} ref={previewStackRef}>
             {!canvasReady && <KeyTagPlaceholder />}
@@ -901,6 +965,55 @@ export default function DesignerApp() {
                 </div>
               </div>
 
+              <div className="text-row text-layout-row">
+                <div className="field">
+                  <label>{extra.textAngle}</label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    step={1}
+                    value={line.angle ?? 0}
+                    onChange={(e) => updateLine(line.id, { angle: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="field field-narrow">
+                  <label>&deg;</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={360}
+                    value={Math.round(line.angle ?? 0)}
+                    onChange={(e) => updateLine(line.id, { angle: ((Number(e.target.value) % 360) + 360) % 360 })}
+                  />
+                </div>
+                <button type="button" className="btn secondary compact" onClick={() => updateLine(line.id, { angle: 0 })}>
+                  0&deg;
+                </button>
+                <button type="button" className="btn secondary compact" onClick={() => updateLine(line.id, { angle: 90 })}>
+                  90&deg;
+                </button>
+                <label className="checkbox-row inline">
+                  <input
+                    type="checkbox"
+                    checked={!!line.stacked}
+                    onChange={(e) => updateLine(line.id, { stacked: e.target.checked })}
+                  />
+                  <span>{extra.textStacked}</span>
+                </label>
+                <div className="field">
+                  <label>{extra.textSpacing}</label>
+                  <input
+                    type="range"
+                    min={-40}
+                    max={120}
+                    step={1}
+                    value={line.letterSpacing ?? 0}
+                    onChange={(e) => updateLine(line.id, { letterSpacing: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+
               <div className="text-row text-style-row">
                 <button
                   type="button"
@@ -1088,6 +1201,20 @@ export default function DesignerApp() {
           </div>
         </div>
       )}
+      {!panelVisible && !floatDismissed && (
+        <div className="float-preview" aria-live="polite">
+          <button
+            type="button"
+            className="float-preview-close"
+            onClick={() => setFloatDismissed(true)}
+            aria-label="Close preview"
+          >
+            &times;
+          </button>
+          <canvas ref={floatCanvasRef} />
+        </div>
+      )}
+
     </div>
   );
 }

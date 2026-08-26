@@ -27,6 +27,22 @@ export type TextLine = {
     /** Blur radius in canvas px. */
     blur: number;
   };
+  /**
+   * Rotation in degrees, 0-360, about the line's own centre.
+   *
+   * ONE value covers every case: 0 is normal, 90 reads along the tag, and
+   * anything between sets it diagonally. The preset buttons write into this
+   * same number rather than running a second system beside it.
+   */
+  angle?: number;
+  /**
+   * Stack the letters downward with each one UPRIGHT, rather than rotating the
+   * whole line. This is a different layout, not a rotation, which is why it is
+   * a separate flag and not another angle.
+   */
+  stacked?: boolean;
+  /** Tracking, in canvas px, added between letters. Negative tightens. */
+  letterSpacing?: number;
 };
 
 /**

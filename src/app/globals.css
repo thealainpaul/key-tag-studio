@@ -446,3 +446,77 @@ label { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(-
   transform-origin: center center;
 }
 
+
+
+/* Rotation / stacking / spacing row on each text block. */
+.text-layout-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.text-layout-row .field { flex: 1 1 130px; min-width: 110px; }
+.text-layout-row .field-narrow { flex: 0 0 74px; min-width: 74px; }
+.text-layout-row .checkbox-row.inline { flex: 1 1 200px; }
+
+
+/*
+ * Floating live preview.
+ *
+ * Appears only once the editor has scrolled out of view, so it never competes
+ * with the real thing. Shows the MOCKUP, i.e. the finished tag.
+ *
+ * position: fixed is deliberate - the iframe height reporter skips fixed and
+ * absolute elements, so this cannot inflate the embed height.
+ */
+.float-preview {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 40;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #d8d8d8);
+  border-radius: 10px;
+  padding: 8px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
+  line-height: 0;
+}
+
+.float-preview canvas {
+  display: block;
+  width: 320px;
+  height: auto;
+  border-radius: 6px;
+}
+
+.float-preview-close {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border, #d8d8d8);
+  background: var(--surface, #fff);
+  color: #444;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* On a phone it docks to the top as a slim strip - there is no corner to spare. */
+@media (max-width: 640px) {
+  .float-preview {
+    right: 8px;
+    left: 8px;
+    bottom: auto;
+    top: 8px;
+    padding: 6px;
+    display: flex;
+    justify-content: center;
+  }
+  .float-preview canvas { width: min(260px, 70vw); }
+  .float-preview-close { top: -7px; right: -7px; }
+}
