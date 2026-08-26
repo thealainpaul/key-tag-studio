@@ -7,6 +7,7 @@ import {
   MOCKUP_PHOTO,
   MOCKUP_PHOTO_OFFSET_Y,
 } from "@/lib/mockup-layout";
+import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
 
 type Props = {
   contentCanvasRef: RefObject<HTMLCanvasElement | null>;
@@ -64,16 +65,31 @@ export default function KeyTagMockupPreview({
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, output.width, output.height);
 
+    // The content canvas is TAG-SIZED (CANVAS_W x CANVAS_H) - the bleed ring
+    // lives on the separate border canvas - so the whole of it is drawn here.
+    //
+    // Do NOT offset this by BLEED_PX. That would read past the edge of the
+    // canvas and shift the artwork. The offset is only correct for the
+    // bleed-sized layers.
+    const srcX = 0;
+    const srcY = 0;
+    const srcW = CANVAS_W;
+    const srcH = CANVAS_H;
+
     // ONE uniform scale for both axes, so nothing is stretched — the QR stays
     // square. Large enough to cover the face; the overhang is trimmed below.
-    const s = Math.max(MOCKUP_FACE.w / content.width, MOCKUP_FACE.h / content.height);
-    const w = content.width * s;
-    const h = content.height * s;
+    const s = Math.max(MOCKUP_FACE.w / srcW, MOCKUP_FACE.h / srcH);
+    const w = srcW * s;
+    const h = srcH * s;
 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(
       content,
+      srcX,
+      srcY,
+      srcW,
+      srcH,
       MOCKUP_FACE.x + (MOCKUP_FACE.w - w) / 2,
       MOCKUP_FACE.y + dy + (MOCKUP_FACE.h - h) / 2,
       w,

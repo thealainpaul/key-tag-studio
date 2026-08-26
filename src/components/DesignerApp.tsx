@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
+import { TEXT_FONTS } from "@/lib/design";
 import { fitCoverInFrame, fitCoverInFrameRotated } from "@/lib/design";
 import AiImageSlot, { type AiSlotResult } from "@/components/AiImageSlot";
 import KeyTagMockupPreview from "@/components/KeyTagMockupPreview";
@@ -32,7 +33,6 @@ import {
   qrModuleSizeMm,
 } from "@/lib/qrcode-render";
 
-const FONTS = ["Arial", "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald"];
 
 /** Canvas pixels per millimetre — used for the QR size readout. */
 const mmPx = mmToPx(1);
@@ -41,7 +41,7 @@ const mmPx = mmToPx(1);
  * Two strings that were hardcoded in English and so never translated.
  * Kept here rather than in i18n.ts to avoid touching shared files.
  */
-const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHint: string; verticalHint: string; bleedLabel: string; overlayHint: string }> = {
+const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHint: string; verticalHint: string; shadowHint: string; shadowColor: string; shadowOpacity: string; shadowSize: string; shadowX: string; shadowY: string }> = {
   de: {
     qrHint:
       "Kreuzen Sie dieses Feld an, wenn Sie einen QR-Code möchten, geben Sie dann Ihre URL unten ein und passen Sie Position und Farben mit den Steuerelementen darunter an.",
@@ -50,10 +50,12 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Kreuzen Sie dieses Feld an, wenn wir es für Sie machen sollen. (Laden Sie dann einfach ein Bild hoch und senden Sie Ihre Bestellung ab.)",
     verticalHint:
       "Kreuzen Sie dieses Feld an für einen vertikalen Editor und Mockup. (Editor im Hochformat)",
-    bleedLabel:
-      "Dieser Rahmenbereich wird nicht auf Ihren Anhänger gedruckt.",
-    overlayHint:
-      "Kreuzen Sie dieses Feld an, um die transparente Rahmenfarbe von Schwarz auf Weiss zu ändern.",
+    shadowHint: "Schatten",
+    shadowColor: "Schattenfarbe",
+    shadowOpacity: "Deckkraft",
+    shadowSize: "Grösse",
+    shadowX: "Horizontal",
+    shadowY: "Vertikal",
   },
   fr: {
     qrHint:
@@ -63,10 +65,12 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Cochez cette case si vous souhaitez que nous le fassions pour vous. (Téléchargez simplement une image et envoyez votre commande.)",
     verticalHint:
       "Cochez cette case pour un éditeur et un mockup verticaux. (Éditeur à la verticale)",
-    bleedLabel:
-      "Cette zone de cadre n’est pas imprimée sur votre porte-clés.",
-    overlayHint:
-      "Cochez cette case pour changer la couleur du cadre transparent de noir à blanc.",
+    shadowHint: "Ombre",
+    shadowColor: "Couleur de l’ombre",
+    shadowOpacity: "Opacité",
+    shadowSize: "Taille",
+    shadowX: "Horizontal",
+    shadowY: "Vertical",
   },
   it: {
     qrHint:
@@ -76,10 +80,12 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Seleziona questa casella se vuoi che lo facciamo noi per te. (Carica semplicemente un'immagine e invia il tuo ordine.)",
     verticalHint:
       "Seleziona questa casella per un editor e un mockup verticali. (Editor in verticale)",
-    bleedLabel:
-      "Quest’area della cornice non viene stampata sul tuo portachiavi.",
-    overlayHint:
-      "Seleziona questa casella per cambiare il colore della cornice trasparente da nero a bianco.",
+    shadowHint: "Ombra",
+    shadowColor: "Colore dell’ombra",
+    shadowOpacity: "Opacità",
+    shadowSize: "Dimensione",
+    shadowX: "Orizzontale",
+    shadowY: "Verticale",
   },
   es: {
     qrHint:
@@ -89,10 +95,12 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Marque esta casilla si desea que lo hagamos por usted. (Solo suba una imagen y envíe su pedido.)",
     verticalHint:
       "Marque esta casilla para un editor y un mockup verticales. (Editor en vertical)",
-    bleedLabel:
-      "Esta zona del marco no se imprime en su llavero.",
-    overlayHint:
-      "Marque esta casilla para cambiar el color del marco transparente de negro a blanco.",
+    shadowHint: "Sombra",
+    shadowColor: "Color de la sombra",
+    shadowOpacity: "Opacidad",
+    shadowSize: "Tamaño",
+    shadowX: "Horizontal",
+    shadowY: "Vertical",
   },
   en: {
     qrHint:
@@ -102,10 +110,12 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
       "Tick this box if you want us to do it for you. (Then simply upload an image and send in your order.)",
     verticalHint:
       "Tick this box to get a vertical editor and Mockup. (Editor that is upright)",
-    bleedLabel:
-      "This frame area doesn’t get printed on your tag.",
-    overlayHint:
-      "Tick this box to change the transparent frame colour from black to white.",
+    shadowHint: "Shadow",
+    shadowColor: "Shadow colour",
+    shadowOpacity: "Opacity",
+    shadowSize: "Size",
+    shadowX: "Horizontal",
+    shadowY: "Vertical",
   },
 };
 
@@ -147,7 +157,6 @@ export default function DesignerApp() {
   /** Read by the gesture hook, which needs it without re-subscribing. */
   const portraitRef = useRef(false);
   const frameColorRef = useRef(FRAME_COLOR_DEFAULT);
-  const overlayRef = useRef<"black" | "white">("black");
 
   const [tagColor, setTagColor] = useState("#1f1f1f");
   const [images, setImages] = useState<DesignImage[]>([]);
@@ -167,7 +176,6 @@ export default function DesignerApp() {
   const [designForMe, setDesignForMe] = useState(false);
   const [portrait, setPortrait] = useState(false);
   const [frameColor, setFrameColor] = useState(FRAME_COLOR_DEFAULT);
-  const [overlayWhite, setOverlayWhite] = useState(false);
   const [canvasReady, setCanvasReady] = useState(false);
   const [mockupRevision, setMockupRevision] = useState(0);
   const [qrEnabled, setQrEnabled] = useState(false);
@@ -186,7 +194,6 @@ export default function DesignerApp() {
   designForMeRef.current = designForMe;
   portraitRef.current = portrait;
   frameColorRef.current = frameColor;
-  overlayRef.current = overlayWhite ? "white" : "black";
 
   const qrCodeState = useMemo(
     () => ({
@@ -222,7 +229,7 @@ export default function DesignerApp() {
     const content = contentCanvasRef.current;
     const border = borderCanvasRef.current;
     if (content) drawContentLayer(content, tagColor, [], [], imageCache.current, { enabled: false, url: "" });
-    if (border) drawBleedLayer(border, tagColor, [], imageCache.current, overlayRef.current);
+    if (border) drawBleedLayer(border, tagColor, [], imageCache.current);
     setCanvasReady(true);
   }, []);
 
@@ -231,8 +238,8 @@ export default function DesignerApp() {
   // the content redraw below does not touch it.
   useEffect(() => {
     const border = borderCanvasRef.current;
-    if (border) drawBleedLayer(border, tagColor, images, imageCache.current, overlayWhite ? "white" : "black");
-  }, [tagColor, images, overlayWhite]);
+    if (border) drawBleedLayer(border, tagColor, images, imageCache.current);
+  }, [tagColor, images]);
 
   useEffect(() => {
     redrawContent();
@@ -636,6 +643,11 @@ export default function DesignerApp() {
         id: uid(),
         text: "",
         fontFamily: "Arial",
+        bold: false,
+        italic: false,
+        underline: false,
+        strike: false,
+        shadow: { enabled: false, color: "#000000", opacity: 0.5, dx: 6, dy: 6, blur: 8 },
         fontSize: 32,
         color: "#ffffff",
         x: CANVAS_W * 0.5,
@@ -660,21 +672,6 @@ export default function DesignerApp() {
       </div>
 
       <div className="preview-panel">
-        <div className="bleed-callout">
-          <label className="checkbox-row inline">
-            <input
-              type="checkbox"
-              checked={overlayWhite}
-              onChange={(e) => setOverlayWhite(e.target.checked)}
-            />
-            <span>{extra.overlayHint}</span>
-          </label>
-          <div className="bleed-pointer">
-            <span className="bleed-pointer-text">{extra.bleedLabel}</span>
-            <span className="bleed-pointer-line" aria-hidden="true" />
-          </div>
-        </div>
-
         <div className={`preview-wrap${portrait ? " portrait" : ""}`}>
           <div className={`preview-stack${portrait ? " portrait" : ""}`} ref={previewStackRef}>
             {!canvasReady && <KeyTagPlaceholder />}
@@ -875,7 +872,7 @@ export default function DesignerApp() {
               <div className="text-row">
                 <div className="field">
                   <select value={line.fontFamily} onChange={(e) => updateLine(line.id, { fontFamily: e.target.value })}>
-                    {FONTS.map((f) => (
+                    {TEXT_FONTS.map((f) => (
                       <option key={f}>{f}</option>
                     ))}
                   </select>
@@ -896,6 +893,135 @@ export default function DesignerApp() {
                     aria-label={labels.textColor}
                   />
                 </div>
+              </div>
+
+              <div className="text-row text-style-row">
+                <button
+                  type="button"
+                  className={`btn compact${line.bold ? " active" : ""}`}
+                  style={{ fontWeight: "bold" }}
+                  onClick={() => updateLine(line.id, { bold: !line.bold })}
+                  aria-pressed={!!line.bold}
+                >
+                  B
+                </button>
+                <button
+                  type="button"
+                  className={`btn compact${line.italic ? " active" : ""}`}
+                  style={{ fontStyle: "italic" }}
+                  onClick={() => updateLine(line.id, { italic: !line.italic })}
+                  aria-pressed={!!line.italic}
+                >
+                  I
+                </button>
+                <button
+                  type="button"
+                  className={`btn compact${line.underline ? " active" : ""}`}
+                  style={{ textDecoration: "underline" }}
+                  onClick={() => updateLine(line.id, { underline: !line.underline })}
+                  aria-pressed={!!line.underline}
+                >
+                  U
+                </button>
+                <button
+                  type="button"
+                  className={`btn compact${line.strike ? " active" : ""}`}
+                  style={{ textDecoration: "line-through" }}
+                  onClick={() => updateLine(line.id, { strike: !line.strike })}
+                  aria-pressed={!!line.strike}
+                >
+                  S
+                </button>
+
+                <label className="checkbox-row inline shadow-toggle">
+                  <input
+                    type="checkbox"
+                    checked={!!line.shadow?.enabled}
+                    onChange={(e) =>
+                      updateLine(line.id, {
+                        shadow: {
+                          color: line.shadow?.color ?? "#000000",
+                          opacity: line.shadow?.opacity ?? 0.5,
+                          dx: line.shadow?.dx ?? 6,
+                          dy: line.shadow?.dy ?? 6,
+                          blur: line.shadow?.blur ?? 8,
+                          enabled: e.target.checked,
+                        },
+                      })
+                    }
+                  />
+                  <span>{extra.shadowHint}</span>
+                </label>
+              </div>
+
+              {line.shadow?.enabled && (
+                <div className="text-row shadow-row">
+                  <div className="field">
+                    <label>{extra.shadowColor}</label>
+                    <input
+                      type="color"
+                      value={line.shadow.color}
+                      onChange={(e) =>
+                        updateLine(line.id, { shadow: { ...line.shadow!, color: e.target.value } })
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label>{extra.shadowOpacity}</label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={line.shadow.opacity}
+                      onChange={(e) =>
+                        updateLine(line.id, { shadow: { ...line.shadow!, opacity: Number(e.target.value) } })
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label>{extra.shadowSize}</label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={60}
+                      step={1}
+                      value={line.shadow.blur}
+                      onChange={(e) =>
+                        updateLine(line.id, { shadow: { ...line.shadow!, blur: Number(e.target.value) } })
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label>{extra.shadowX}</label>
+                    <input
+                      type="range"
+                      min={-60}
+                      max={60}
+                      step={1}
+                      value={line.shadow.dx}
+                      onChange={(e) =>
+                        updateLine(line.id, { shadow: { ...line.shadow!, dx: Number(e.target.value) } })
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label>{extra.shadowY}</label>
+                    <input
+                      type="range"
+                      min={-60}
+                      max={60}
+                      step={1}
+                      value={line.shadow.dy}
+                      onChange={(e) =>
+                        updateLine(line.id, { shadow: { ...line.shadow!, dy: Number(e.target.value) } })
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="text-row">
                 <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
                   <button
                     className="btn danger compact"

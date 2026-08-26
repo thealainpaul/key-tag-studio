@@ -1,4 +1,5 @@
 import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
+import { liftColor, MIN_CHANNEL } from "@/lib/design";
 import {
   BLEED_CANVAS_H,
   BLEED_CANVAS_W,
@@ -17,8 +18,6 @@ import { embedPngDpi } from "@/lib/png-dpi";
 /** Enough for print (tag is ~2173px wide) without huge phone-photo payloads. */
 const SUBMIT_IMAGE_MAX_PX = 2560;
 
-/** The editor's bleed layer. 0.75 = the picture shows through at 25%. */
-const BLEED_OVERLAY_ALPHA = 0.75;
 const SUBMIT_JPEG_QUALITY = 0.9;
 
 export function preloadImage(url: string, cache: Map<string, HTMLImageElement>) {
@@ -70,6 +69,52 @@ function bleedShapeMask(): HTMLCanvasElement {
   c.lineCap = "round";
   c.stroke();
   return mask;
+}
+
+
+/**
+ * Shadow colour as rgba, so opacity is applied without disturbing the hue the
+ * customer picked. Accepts #rgb, #rrggbb and rgb()/rgba(); anything else is
+ * passed through untouched rather than guessed at.
+ */
+function shadowRgba(css: string, alpha: number): string {
+  const hex = css.trim();
+  let r: number, g: number, b: number;
+  if (/^#[0-9a-f]{3}$/i.test(hex)) {
+    r = parseInt(hex[1] + hex[1], 16);
+    g = parseInt(hex[2] + hex[2], 16);
+    b = parseInt(hex[3] + hex[3], 16);
+  } else if (/^#[0-9a-f]{6}$/i.test(hex)) {
+    r = parseInt(hex.slice(1, 3), 16);
+    g = parseInt(hex.slice(3, 5), 16);
+    b = parseInt(hex.slice(5, 7), 16);
+  } else {
+    return css;
+  }
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * Apply the manufacturer's 80% ink ceiling to a canvas in place.
+ *
+ * Every channel is lifted so nothing prints darker than 80% black. Hue is
+ * preserved - the picture keeps its colour, it simply loses its pure blacks,
+ * which is what he asked for and what his own sample files show.
+ *
+ * Applied to the finished artwork, so it covers uploaded photographs, AI
+ * images, the tag colour, the text and the QR in one pass.
+ */
+export function applyInkCeiling(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  const img = ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  const span = 255 - MIN_CHANNEL;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    d[i] = MIN_CHANNEL + (d[i] / 255) * span;
+    d[i + 1] = MIN_CHANNEL + (d[i + 1] / 255) * span;
+    d[i + 2] = MIN_CHANNEL + (d[i + 2] / 255) * span;
+  }
+  ctx.putImageData(img, 0, 0);
 }
 
 /**
@@ -168,9 +213,57 @@ function paintTagContent(
   ctx.textBaseline = "middle";
   textLines.forEach((line) => {
     if (!line.text.trim()) return;
-    ctx.font = `${line.fontSize}px "${line.fontFamily}"`;
+
+    const weight = line.bold ? "bold " : "";
+    const style = line.italic ? "italic " : "";
+    ctx.font = `${style}${weight}${line.fontSize}px "${line.fontFamily}"`;
+
+    ctx.save();
+
+    // Shadow. A light colour makes this read as a glow or a light source
+    // rather than a shadow, which is the point of leaving the colour free.
+    const sh = line.shadow;
+    if (sh?.enabled) {
+      const a = Math.max(0, Math.min(1, sh.opacity));
+      ctx.shadowColor = shadowRgba(sh.color, a);
+      ctx.shadowOffsetX = sh.dx;
+      ctx.shadowOffsetY = sh.dy;
+      ctx.shadowBlur = sh.blur;
+    }
+
     ctx.fillStyle = line.color;
     ctx.fillText(line.text, line.x, line.y);
+
+    // Rules are drawn without the shadow, otherwise a blurred bar doubles up
+    // under the glyphs and muddies small type.
+    if (line.underline || line.strike) {
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      // Positioned from the MEASURED glyphs, not from a fraction of the font
+      // size. textBaseline is "middle" here, so line.y is the vertical centre;
+      // a fixed fraction put the underline inside the letters and the strike
+      // above centre. actualBoundingBox gives the real ink extent for whatever
+      // face and weight the customer picked.
+      const m = ctx.measureText(line.text);
+      const w = m.width;
+      const x0 = ctx.textAlign === "center" ? line.x - w / 2 : line.x;
+      const thickness = Math.max(1, line.fontSize * 0.06);
+      const ascent = m.actualBoundingBoxAscent || line.fontSize * 0.35;
+      const descent = m.actualBoundingBoxDescent || line.fontSize * 0.35;
+      ctx.fillStyle = line.color;
+      if (line.underline) {
+        // Clear of the descenders, so "g" and "y" are not cut through.
+        ctx.fillRect(x0, line.y + descent + thickness * 1.5, w, thickness);
+      }
+      if (line.strike) {
+        // Through the middle of the ink, not the middle of the line box.
+        ctx.fillRect(x0, line.y - ascent / 2 + descent / 2 - thickness / 2, w, thickness);
+      }
+    }
+
+    ctx.restore();
   });
 
   // QR — drawn last so it sits on top of artwork and text
@@ -210,6 +303,10 @@ export function drawContentLayer(
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
   paintTagContent(ctx, tagColor, images, textLines, cache, qrCode);
+
+  // The manufacturer's 80% ink ceiling, applied last so it covers the
+  // uploaded picture, the tag colour, the text and the QR alike.
+  applyInkCeiling(ctx, CANVAS_W, CANVAS_H);
 }
 
 /**
@@ -247,24 +344,24 @@ export function drawPrintLayer(
   paintTagContent(ctx, tagColor, images, textLines, cache, qrCode);
 
   ctx.restore();
+
+  // The manufacturer's 80% ink ceiling, applied last so it covers the
+  // uploaded picture, the tag colour, the text and the QR alike.
+  applyInkCeiling(ctx, BLEED_CANVAS_W, BLEED_CANVAS_H);
 }
 
 /**
- * Editor bleed layer.
+/**
+ * Editor bleed layer: the customer's picture carried 1mm past the tag edge.
  *
- * Occupies exactly the place the coloured frame used to: the same bleed-sized
- * canvas, the same 2mm ring outside the tag. The only change is what fills it -
- * the customer's own picture carried outward, instead of a flat colour - with a
- * 75% layer over it so they can see it will be trimmed away.
- *
- * The tag canvas is not resized and the mockup is not touched.
+ * No dimming overlay - the ring simply shows the artwork continuing outward,
+ * which is exactly what the manufacturer prints and then trims.
  */
 export function drawBleedLayer(
   canvas: HTMLCanvasElement,
   tagColor: string,
   images: DesignImage[],
-  cache: Map<string, HTMLImageElement>,
-  overlay: "black" | "white" = "black"
+  cache: Map<string, HTMLImageElement>
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -277,14 +374,9 @@ export function drawBleedLayer(
   paintBleedRing(ctx, tagColor, images, cache);
   ctx.restore();
 
-  // The 75% layer, laid only where the ring was painted. source-atop leaves the
-  // transparent tag area and everything past the 2mm untouched.
-  ctx.save();
-  ctx.globalCompositeOperation = "source-atop";
-  ctx.globalAlpha = BLEED_OVERLAY_ALPHA;
-  ctx.fillStyle = overlay === "white" ? "#ffffff" : "#000000";
-  ctx.fillRect(0, 0, BLEED_CANVAS_W, BLEED_CANVAS_H);
-  ctx.restore();
+  // The manufacturer's 80% ink ceiling, applied last so it covers the
+  // uploaded picture, the tag colour, the text and the QR alike.
+  applyInkCeiling(ctx, BLEED_CANVAS_W, BLEED_CANVAS_H);
 }
 
 /**
