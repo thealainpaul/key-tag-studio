@@ -97,22 +97,49 @@ function shadowRgba(css: string, alpha: number): string {
 /**
  * Apply the manufacturer's 80% ink ceiling to a canvas in place.
  *
- * Every channel is lifted so nothing prints darker than 80% black. Hue is
- * preserved - the picture keeps its colour, it simply loses its pure blacks,
- * which is what he asked for and what his own sample files show.
+ * "Barcodes, oder deren Hintergruende sollten grundsaetzlich, wie auch
+ * Schriften, auf 80% schwarz, also Grau, gestaltet werden."
  *
- * Applied to the finished artwork, so it covers uploaded photographs, AI
- * images, the tag colour, the text and the QR in one pass.
+ * 80% ink means 20% of the paper still shows, so the darkest tone printable is
+ * 51 of 255. This CLAMPS only the pixels that would go past that ceiling and
+ * leaves everything else exactly as the customer made it.
+ *
+ * It does NOT lift the whole image. An earlier version did, which greyed every
+ * picture and invented a grey background where there was none.
+ *
+ * The three channels are scaled by the SAME factor, so hue survives. A very
+ * dark brown (40, 20, 10) reads as near-black in print, so it is lifted to
+ * (51, 26, 13) - still brown, no longer darker than 80% ink. Clamping each
+ * channel on its own would have flattened it to grey.
  */
 export function applyInkCeiling(ctx: CanvasRenderingContext2D, w: number, h: number) {
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
-  const span = 255 - MIN_CHANNEL;
   for (let i = 0; i < d.length; i += 4) {
     if (d[i + 3] === 0) continue;
-    d[i] = MIN_CHANNEL + (d[i] / 255) * span;
-    d[i + 1] = MIN_CHANNEL + (d[i + 1] / 255) * span;
-    d[i + 2] = MIN_CHANNEL + (d[i + 2] / 255) * span;
+
+    // How dark the pixel READS is set by its brightest channel. If that is
+    // already at or above the ceiling the pixel prints lighter than 80% ink
+    // and is left completely alone.
+    const brightest = Math.max(d[i], d[i + 1], d[i + 2]);
+    if (brightest >= MIN_CHANNEL) continue;
+
+    if (brightest === 0) {
+      // Absolute black. There is no ratio to preserve, so it becomes the
+      // ceiling itself - 80% black, which is the grey the printer asked for.
+      d[i] = MIN_CHANNEL;
+      d[i + 1] = MIN_CHANNEL;
+      d[i + 2] = MIN_CHANNEL;
+      continue;
+    }
+
+    // Scale all three by the same factor, so the hue is unchanged and only the
+    // darkness moves. A very dark brown (40, 20, 10) becomes (51, 26, 13):
+    // still brown, no longer darker than 80% ink.
+    const k = MIN_CHANNEL / brightest;
+    d[i] = Math.round(d[i] * k);
+    d[i + 1] = Math.round(d[i + 1] * k);
+    d[i + 2] = Math.round(d[i + 2] * k);
   }
   ctx.putImageData(img, 0, 0);
 }

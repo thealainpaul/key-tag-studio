@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
-import type { DesignImage, TextLine } from "@/lib/design";
+import type { DesignImage, DesignPayload, TextLine } from "@/lib/design";
 import { pinchImageDimensions, pointerDistance, type PinchState } from "@/lib/canvas-gestures";
 import { CANVAS_H, CANVAS_W } from "@/lib/keytag-shape";
+import { QR_DEFAULT_PX, qrDefaultCenter } from "@/lib/qrcode-render";
 
-type DragState = { type: "text" | "image"; id: string; ox: number; oy: number };
+type DragState = { type: "text" | "image" | "qr"; id: string; ox: number; oy: number };
 type PointerPoint = { x: number; y: number };
 
 type Options = {
@@ -14,6 +15,9 @@ type Options = {
   portraitRef?: React.MutableRefObject<boolean>;
   imagesRef: React.MutableRefObject<DesignImage[]>;
   textLinesRef: React.MutableRefObject<TextLine[]>;
+  /** The QR, so it can be dragged like text and images rather than only nudged. */
+  qrCodeRef?: React.MutableRefObject<DesignPayload["qrCode"] | undefined>;
+  onQrChange?: (patch: { x: number; y: number }) => void;
   selectedBgIdRef: React.MutableRefObject<string | null>;
   tagColorRef: React.MutableRefObject<string>;
   redrawContent: (images?: DesignImage[], textLines?: TextLine[], tagColor?: string) => void;
@@ -31,6 +35,8 @@ export function useCanvasGestures({
   portraitRef,
   imagesRef,
   textLinesRef,
+  qrCodeRef,
+  onQrChange,
   selectedBgIdRef,
   tagColorRef,
   redrawContent,
@@ -81,6 +87,21 @@ export function useCanvasGestures({
     if (!ctx) return;
     const bg = activeImage();
     const { x, y } = canvasPoint(clientX, clientY);
+    // QR first: it is drawn on top of everything, so it must be grabbed first.
+    // It used to be absent from this hit test entirely, which is why it could
+    // only be nudged with the controls while text and images could be dragged.
+    const qr = qrCodeRef?.current;
+    if (qr?.enabled && qr.url?.trim()) {
+      const size = qr.size ?? QR_DEFAULT_PX;
+      const fallback = qrDefaultCenter(size);
+      const qx = qr.x ?? fallback.x;
+      const qy = qr.y ?? fallback.y;
+      if (x >= qx && x <= qx + size && y >= qy && y <= qy + size) {
+        dragRef.current = { type: "qr", id: "qr", ox: x - qx, oy: y - qy };
+        return;
+      }
+    }
+
     const hit = [...textLinesRef.current].reverse().find((line) => line.text.trim() && hitText(ctx, line, x, y));
 
     if (hit) {
@@ -96,6 +117,11 @@ export function useCanvasGestures({
   function moveDrag(clientX: number, clientY: number) {
     if (!dragRef.current) return;
     const { x, y } = canvasPoint(clientX, clientY);
+
+    if (dragRef.current.type === "qr") {
+      onQrChange?.({ x: x - dragRef.current.ox, y: y - dragRef.current.oy });
+      return;
+    }
 
     if (dragRef.current.type === "text") {
       const next = textLinesRef.current.map((line) =>
@@ -114,6 +140,10 @@ export function useCanvasGestures({
 
   function endDrag() {
     if (!dragRef.current) return;
+    if (dragRef.current.type === "qr") {
+      dragRef.current = null;
+      return;
+    }
     if (dragRef.current.type === "text") onTextLinesChange([...textLinesRef.current]);
     else onImagesChange([...imagesRef.current]);
     dragRef.current = null;

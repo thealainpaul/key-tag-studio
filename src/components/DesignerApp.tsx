@@ -251,6 +251,11 @@ export default function DesignerApp() {
     touchTargetRef: previewStackRef,
     enabled: canvasReady,
     portraitRef,
+    qrCodeRef: qrCodeStateRef,
+    onQrChange: ({ x, y }) => {
+      setQrX(x);
+      setQrY(y);
+    },
     imagesRef,
     textLinesRef,
     selectedBgIdRef,
@@ -630,9 +635,10 @@ export default function DesignerApp() {
     await addAiImage(url);
     setFitMode("manual");
     setAiOpen(false);
-    setAiResults([]);
-    setAiSeeds([]);
     setAiLoading(false);
+    // The generated set is deliberately NOT cleared. Picking one image used to
+    // discard the other two, so changing your mind meant generating again from
+    // scratch. They stay until a new set is generated.
   }
 
   function addTextLine() {
