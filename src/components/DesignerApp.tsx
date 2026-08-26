@@ -41,7 +41,7 @@ const mmPx = mmToPx(1);
  * Two strings that were hardcoded in English and so never translated.
  * Kept here rather than in i18n.ts to avoid touching shared files.
  */
-const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHint: string; verticalHint: string; shadowHint: string; shadowColor: string; shadowOpacity: string; shadowSize: string; shadowX: string; shadowY: string; textAngle: string; textStacked: string; textSpacing: string }> = {
+const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHint: string; verticalHint: string; shadowHint: string; shadowColor: string; shadowOpacity: string; shadowSize: string; shadowX: string; shadowY: string; textAngle: string; textStacked: string; textSpacing: string; imageFlip: string }> = {
   de: {
     qrHint:
       "Kreuzen Sie dieses Feld an, wenn Sie einen QR-Code möchten, geben Sie dann Ihre URL unten ein und passen Sie Position und Farben mit den Steuerelementen darunter an.",
@@ -59,6 +59,7 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
     textAngle: "Drehung",
     textStacked: "Buchstaben untereinander",
     textSpacing: "Zeichenabstand",
+    imageFlip: "Bild um 180 Grad drehen",
   },
   fr: {
     qrHint:
@@ -77,6 +78,7 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
     textAngle: "Rotation",
     textStacked: "Lettres l’une sous l’autre",
     textSpacing: "Espacement",
+    imageFlip: "Tourner l’image de 180 degrés",
   },
   it: {
     qrHint:
@@ -95,6 +97,7 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
     textAngle: "Rotazione",
     textStacked: "Lettere una sotto l’altra",
     textSpacing: "Spaziatura",
+    imageFlip: "Ruota l’immagine di 180 gradi",
   },
   es: {
     qrHint:
@@ -113,6 +116,7 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
     textAngle: "Rotación",
     textStacked: "Letras una debajo de otra",
     textSpacing: "Espaciado",
+    imageFlip: "Girar la imagen 180 grados",
   },
   en: {
     qrHint:
@@ -131,6 +135,7 @@ const EXTRA_STRINGS: Record<string, { qrHint: string; scaleHint: string; forMeHi
     textAngle: "Rotation",
     textStacked: "Letters stacked downward",
     textSpacing: "Letter spacing",
+    imageFlip: "Turn the image 180 degrees",
   },
 };
 
@@ -581,6 +586,20 @@ export default function DesignerApp() {
     setImages((prev) => prev.map((img) => (img.id === id ? scaleImageUniform(img, factor) : img)));
   }
 
+  /**
+   * Turn the picture 180 degrees.
+   *
+   * Mainly for the vertical editor: an upload or an AI image can come out the
+   * wrong way up once the tag is upright, and dragging cannot fix that.
+   */
+  function rotateActiveImage() {
+    const id = selectedBgId || images[0]?.id;
+    if (!id) return;
+    setImages((prev) =>
+      prev.map((img) => (img.id === id ? { ...img, rotation: (((img.rotation + 180) % 360) + 360) % 360 } : img))
+    );
+  }
+
   function fileToDataUrl(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -715,7 +734,17 @@ export default function DesignerApp() {
         underline: false,
         strike: false,
         shadow: { enabled: false, color: "#000000", opacity: 0.5, dx: 6, dy: 6, blur: 8 },
-        angle: 0,
+        /*
+         * In the vertical editor the whole canvas is displayed rotated 90
+         * degrees CLOCKWISE, so canvas +x appears as screen-down and text drawn
+         * at 0 comes out sideways. Images already compensate the same way, with
+         * rotation -90 when added in portrait.
+         *
+         * 270 makes the glyphs read upright on screen AND sends a stacked line
+         * downward instead of upward - the rotation transform carries the stack
+         * with it, so one value fixes both.
+         */
+        angle: portraitRef.current ? 270 : 0,
         stacked: false,
         letterSpacing: 0,
         // 180 px is 3.58 mm cap height on the 17.9 mm tag - 20% of its height.
@@ -798,6 +827,16 @@ export default function DesignerApp() {
               disabled={images.length === 0}
             >
               +
+            </button>
+            <button
+              type="button"
+              className="btn secondary compact"
+              onClick={rotateActiveImage}
+              title={extra.imageFlip}
+              aria-label={extra.imageFlip}
+              disabled={images.length === 0}
+            >
+              180&deg;
             </button>
           </div>
         </div>
@@ -994,8 +1033,18 @@ export default function DesignerApp() {
                 <button type="button" className="btn secondary compact" onClick={() => updateLine(line.id, { angle: 0 })}>
                   0&deg;
                 </button>
-                <button type="button" className="btn secondary compact" onClick={() => updateLine(line.id, { angle: 90 })}>
-                  90&deg;
+                <button
+                  type="button"
+                  className="btn secondary compact"
+                  title="Rotate 90 degrees clockwise"
+                  onClick={() =>
+                    // Steps ROUND: 0 -> 90 -> 180 -> 270 -> 0. Setting it to a
+                    // fixed 90 meant a second click did nothing, so the only way
+                    // to reach 180 or 270 was the slider.
+                    updateLine(line.id, { angle: (((line.angle ?? 0) + 90) % 360 + 360) % 360 })
+                  }
+                >
+                  +90&deg;
                 </button>
                 <label className="checkbox-row inline">
                   <input
