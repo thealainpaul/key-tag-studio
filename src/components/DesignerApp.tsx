@@ -173,6 +173,16 @@ export default function DesignerApp() {
   const floatCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [panelVisible, setPanelVisible] = useState(true);
   const [floatDismissed, setFloatDismissed] = useState(false);
+  // Where the customer's actual browser window sits inside this page.
+  //
+  // The floating preview used position:fixed, which works standalone but not
+  // embedded: inside an iframe "fixed" means fixed to the IFRAME's viewport,
+  // and the parent sizes that frame to the full content height, so the frame
+  // has no scrolling viewport of its own. The preview therefore stood still
+  // while the WordPress page scrolled past it. The parent posts its scroll
+  // band in and the preview is placed absolutely inside it. Null until a
+  // message arrives, which keeps the standalone page on the old behaviour.
+  const [scrollBand, setScrollBand] = useState<{ top: number; height: number } | null>(null);
   /**
    * The customer's source image exactly as it arrived — before fitCoverInFrame
    * cropped it to the tag. Only submitted when "design it for me" is ticked.
@@ -491,6 +501,22 @@ export default function DesignerApp() {
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(src, 0, 0, w, h);
   }, [mockupRevision, panelVisible, floatDismissed, portrait]);
+
+  // The WordPress page posts { top, height } on scroll and resize. `top` is how
+  // many pixels of this document sit above the top of the customer's window, so
+  // the visible band runs from `top` to `top + height` in this page's own
+  // coordinates.
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      const d = e.data as { type?: string; top?: number; height?: number } | null;
+      if (!d || d.type !== "bik_viewport") return;
+      if (typeof d.top !== "number" || typeof d.height !== "number") return;
+      if (!isFinite(d.top) || !isFinite(d.height) || d.height <= 0) return;
+      setScrollBand({ top: d.top, height: d.height });
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   /**
    * Tell WordPress how tall this page actually is.
@@ -1255,7 +1281,18 @@ export default function DesignerApp() {
         </div>
       )}
       {!panelVisible && !floatDismissed && (
-        <div className="float-preview" aria-live="polite">
+        <div
+          className={`float-preview${scrollBand ? " anchored" : ""}`}
+          aria-live="polite"
+          style={
+            scrollBand
+              ? ({
+                  "--band-top": `${scrollBand.top}px`,
+                  "--band-bottom": `${scrollBand.top + scrollBand.height}px`,
+                } as React.CSSProperties)
+              : undefined
+          }
+        >
           <button
             type="button"
             className="float-preview-close"

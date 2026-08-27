@@ -490,6 +490,26 @@ label { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(-
   border-radius: 6px;
 }
 
+/*
+ * Embedded, the parent tells us where the customer's window is.
+ *
+ * position:fixed inside an iframe pins to the IFRAME's viewport, and the
+ * WordPress page sizes that frame to the whole content, so fixed meant
+ * motionless while the page scrolled past. Absolute against the document,
+ * placed inside the band the parent reports, moves with the reader instead.
+ * Both --band values come from the page; without them this class is never
+ * applied and the standalone site keeps position:fixed.
+ *
+ * The height reporter skips absolute as well as fixed elements, so this
+ * cannot re-inflate the embed.
+ */
+.float-preview.anchored {
+  position: absolute;
+  bottom: auto;
+  top: calc(var(--band-bottom) - 14px);
+  transform: translateY(-100%);
+}
+
 .float-preview-close {
   position: absolute;
   top: -9px;
@@ -519,4 +539,10 @@ label { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(-
   }
   .float-preview canvas { width: min(260px, 70vw); }
   .float-preview-close { top: -7px; right: -7px; }
+
+  /* Docked to the top of the visible band, matching the slim-strip layout. */
+  .float-preview.anchored {
+    top: calc(var(--band-top) + 8px);
+    transform: none;
+  }
 }
