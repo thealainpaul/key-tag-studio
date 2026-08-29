@@ -47,7 +47,11 @@ async function generateImage(
   // showing it vertically crops the subject away.
   const w = orientation === "portrait" ? AI_GEN_PORTRAIT_W : AI_GEN_W;
   const h = orientation === "portrait" ? AI_GEN_PORTRAIT_H : AI_GEN_H;
-  const url = `https://gen.pollinations.ai/image/${encoded}?width=${w}&height=${h}&seed=${seed}&model=flux&nologo=true&key=${apiKey}`;
+  // seedream-5-pro, not flux. flux is capped at 1536 x 640 whatever is asked for
+  // (measured: 2079x846, 3072x1250 and 1536x625 all returned 1536 x 640), which
+  // is 886.58 dpi once stretched across the tag. seedream-5-pro returns
+  // 3056 x 1312 for the same request - enough to DOWNSCALE into the print file.
+  const url = `https://gen.pollinations.ai/image/${encoded}?width=${w}&height=${h}&seed=${seed}&model=seedream-5-pro&nologo=true&key=${apiKey}`;
 
   return retryWithBackoff(async () => {
     const res = await fetch(url, {

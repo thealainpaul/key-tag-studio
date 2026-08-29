@@ -143,13 +143,25 @@ export type DesignPayload = {
   };
 };
 
-import { CANVAS_H, CANVAS_W } from "./keytag-shape";
+import { BLEED_CANVAS_H, BLEED_CANVAS_W, CANVAS_H, CANVAS_W } from "./keytag-shape";
 
-/** Wide banner — similar proportions to the key tag. */
-export const AI_GEN_W = 1280;
-export const AI_GEN_H = Math.round(
-  AI_GEN_W / (KEYTAG_SPECS.designAreaMm.width / KEYTAG_SPECS.designAreaMm.height)
-);
+/**
+ * Ask for the full print file size, bleed included — 2173 x 940.
+ *
+ * This was 1280 x 521, which was then blown up to fill 2079 x 846. Measured, the
+ * real detail that gave across the printed width was 886.58 dpi against the
+ * 1200 the manufacturer requires, and his email says plainly that upscaling does
+ * not count.
+ *
+ * Pollinations does not honour these numbers exactly — it snaps to its own
+ * bucket for the requested shape. Measured with model seedream-5-pro, asking for
+ * 2173 x 940 returns 3056 x 1312, which is 1.9629x the 2,042,620 px needed, so
+ * the image is DOWNSCALED to fit and lands at 1674.89 dpi. The old flux model
+ * was capped at 1536 x 640 no matter what was asked for, which is where the
+ * 886.58 came from.
+ */
+export const AI_GEN_W = BLEED_CANVAS_W;
+export const AI_GEN_H = BLEED_CANVAS_H;
 
 /** Portrait equivalent — the same pixels, tall instead of wide. */
 export const AI_GEN_PORTRAIT_W = AI_GEN_H;
